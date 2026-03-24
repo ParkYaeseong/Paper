@@ -27,6 +27,7 @@ class Settings:
     session_ttl_s: int
     session_cookie_name: str
     session_cookie_secure: bool
+    storage_root: str
 
 
 def get_settings() -> Settings:
@@ -48,4 +49,5 @@ def get_settings() -> Settings:
             "true",
             "yes",
         },
+        storage_root=_env("PAPER_STORAGE_ROOT", "./data"),
     )
