@@ -29,6 +29,7 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
     uploadTitle: "What To Upload",
     uploadItems: [
       "Upload internal project materials such as README files, usage docs, CSV tables, JSON outputs, notes, and prior draft text.",
+      "Choose a role for each file at upload time: Narrative brief, Supporting doc, Results table, or Background / reference.",
       "Reference papers are optional at upload time. Run Evidence searches external literature later.",
       "Upload is for your source material, not only for final reference PDFs.",
     ],
@@ -40,6 +41,7 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
       "Draft Export always creates a working manuscript bundle.",
       "Final Export unlocks only after the latest quality report has no critical issues.",
       "If uploaded files change, run Run Ingest again to refresh the project profile.",
+      "If you change an uploaded file role after upload, rerun ingest so the manuscript context is rebuilt correctly.",
     ],
     mistakesTitle: "Common Mistakes",
     mistakesItems: [
@@ -64,6 +66,7 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
     uploadTitle: "무엇을 업로드하나요?",
     uploadItems: [
       "README, 사용 문서, CSV 표, JSON 결과, 메모, 기존 초안 같은 내부 프로젝트 자료를 업로드하세요.",
+      "업로드할 때 각 파일 역할을 Narrative brief, Supporting doc, Results table, Background / reference 중에서 고르세요.",
       "참고 논문은 업로드 단계에서 필수가 아닙니다. Run Evidence가 이후 외부 문헌을 검색합니다.",
       "Upload는 참고문헌 PDF 전용이 아니라, 논문 초안의 근거가 되는 내부 자료용입니다.",
     ],
@@ -75,6 +78,7 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
       "Draft Export는 작업용 초안을 항상 내보냅니다.",
       "Final Export는 최신 quality report에 critical issue가 없을 때만 활성화됩니다.",
       "업로드한 파일이 바뀌면 Run Ingest를 다시 실행하세요.",
+      "업로드 후 파일 역할을 바꿨다면 manuscript context를 다시 만들기 위해 ingest를 다시 실행하세요.",
     ],
     mistakesTitle: "자주 하는 실수",
     mistakesItems: [

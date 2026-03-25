@@ -17,6 +17,7 @@ vi.mock("./lib/api", () => ({
   runPipelineStage: vi.fn(),
   runPipelineStageWithInput: vi.fn(),
   updateFigureSpec: vi.fn(),
+  updateArtifactRole: vi.fn(),
   updateCitationSlot: vi.fn(),
   updateDraftSection: vi.fn(),
   uploadArtifacts: vi.fn(),

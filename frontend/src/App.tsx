@@ -20,11 +20,13 @@ import {
   runPipelineStage,
   runPipelineStageWithInput,
   updateFigureSpec,
+  updateArtifactRole,
   updateCitationSlot,
   updateDraftSection,
   uploadArtifacts
 } from "./lib/api";
 import { buildOidcAuthorizationUrl, buildOidcRedirectUri, parseOidcCallback, stripOidcCallbackParams } from "./lib/auth";
+import type { ArtifactRole } from "./lib/artifactRoles";
 import type { GuideLanguage } from "./lib/guide-content";
 import type { AuthConfig, JobRun, Project, User, Workspace } from "./lib/types";
 import { isActiveJob, sortJobsByRecency } from "./lib/stages";
@@ -249,15 +251,21 @@ export default function App() {
     }
   }
 
-  async function handleUploadFiles(files: File[]) {
+  async function handleUploadFiles(uploads: Array<{ file: File; role: ArtifactRole }>) {
     if (!selectedProjectId) return;
-    await uploadArtifacts(selectedProjectId, files);
+    await uploadArtifacts(selectedProjectId, uploads);
     await refreshWorkspace(selectedProjectId);
   }
 
   async function handleDeleteArtifact(artifactId: string) {
     if (!selectedProjectId) return;
     await deleteArtifact(selectedProjectId, artifactId);
+    await refreshWorkspace(selectedProjectId);
+  }
+
+  async function handleUpdateArtifactRole(artifactId: string, role: ArtifactRole) {
+    if (!selectedProjectId) return;
+    await updateArtifactRole(selectedProjectId, artifactId, role);
     await refreshWorkspace(selectedProjectId);
   }
 
@@ -340,6 +348,7 @@ export default function App() {
         {selectedProject && workspace ? (
           <ProjectWorkspace
             onDeleteArtifact={handleDeleteArtifact}
+            onUpdateArtifactRole={handleUpdateArtifactRole}
             pendingStage={pendingStage}
             onRunExport={(mode) => handleRunStageWithInput("export", { mode })}
             onReviewSlot={handleReviewSlot}

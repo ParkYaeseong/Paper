@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.models import CitationSlot, DatasetProfile, DraftSection, Outline, Project
 from app.services import llm
+from app.services.manuscript_context import load_manuscript_context
 
 
 def _section_figure_placeholders(project: Project, section_key: str, heading: str) -> list[str]:
@@ -31,22 +32,106 @@ def _section_version(session: Session, project_id: str, section_key: str) -> int
     return int(version or 0) + 1
 
 
+def _results_evidence_lines(results_context: dict[str, object]) -> list[str]:
+    lines: list[str] = []
+    tables = list(results_context.get("tables") or [])
+    for table in tables[:3]:
+        filename = str(table.get("filename") or "results")
+        sample_rows = list(table.get("sample_rows") or [])
+        if sample_rows:
+            metric_pairs = []
+            for row in sample_rows[:6]:
+                if not isinstance(row, dict):
+                    continue
+                metric = str(row.get("metric") or "").strip()
+                value = str(row.get("value") or "").strip()
+                if metric and value:
+                    metric_pairs.append(f"{metric} = {value}")
+            if metric_pairs:
+                lines.append(f"The artifact `{filename}` reports {', '.join(metric_pairs)}.")
+                continue
+
+            representative_rows = []
+            for row in sample_rows[:2]:
+                if not isinstance(row, dict):
+                    continue
+                row_pairs = [f"{key}={value}" for key, value in row.items() if str(value).strip()][:4]
+                if row_pairs:
+                    representative_rows.append("; ".join(row_pairs))
+            if representative_rows:
+                lines.append(f"Representative rows from `{filename}` include {' | '.join(representative_rows)}.")
+                continue
+
+        columns = table.get("columns") or table.get("json_keys") or []
+        if columns:
+            lines.append(
+                f"The artifact `{filename}` includes structured fields such as "
+                f"{', '.join(str(column) for column in columns[:6])}."
+            )
+
+    return lines
+
+
+def _merge_structured_results_evidence(content: str, section_key: str, results_context: dict[str, object]) -> str:
+    if section_key not in {"results", "evaluation"}:
+        return content
+    evidence_lines = _results_evidence_lines(results_context)
+    if not evidence_lines:
+        return content
+    merged = content.strip()
+    for line in evidence_lines:
+        if line not in merged:
+            merged = f"{merged}\n\n{line}" if merged else line
+    return merged
+
+
 def _fallback_section_content(
     project: Project,
     profile: DatasetProfile,
+    manuscript_context: dict[str, object],
     section_key: str,
     heading: str,
     slot_keys: list[str],
 ) -> str:
     dataset_summary = profile.summary_json.get("dataset_summary", {})
+    results_context = profile.summary_json.get("results_context", {})
+    contribution_points = list(manuscript_context.get("contribution_points") or [])
+    narrative_text = str(manuscript_context.get("narrative_text") or "")
+    supporting_text = str(manuscript_context.get("supporting_text") or "")
     table_count = dataset_summary.get("table_count", 0)
     figure_placeholders = _section_figure_placeholders(project, section_key, heading)
     if section_key == "introduction":
         lines = [
             f"{project.title} addresses the question: {project.objective or 'How internal research data can be turned into a publishable manuscript.'}",
         ]
+        if contribution_points:
+            lines.append(f"Key differentiators include {', '.join(contribution_points[:3])}.")
         for slot_key in slot_keys:
             lines.append(f"This background claim requires literature support [{slot_key}].")
+        return "\n\n".join(lines)
+    if section_key == "system_overview":
+        lines = [
+            f"{project.title} is positioned as a workflow system rather than a single predictive model.",
+        ]
+        if contribution_points:
+            lines.extend(contribution_points[:4])
+        lines.extend(figure_placeholders)
+        return "\n\n".join(lines)
+    if section_key == "architecture":
+        lines = [
+            "The architecture connects a user-facing interface, orchestration services, external model endpoints, and structured artifact storage.",
+        ]
+        if supporting_text:
+            lines.append(supporting_text[:800])
+        lines.extend(figure_placeholders)
+        return "\n\n".join(lines)
+    if section_key == "workflow":
+        lines = [
+            "The workflow supports staged execution, monitoring, comparison, and reporting across iterative runs.",
+        ]
+        if narrative_text:
+            lines.append(narrative_text[:800])
+        lines.extend(figure_placeholders)
         return "\n\n".join(lines)
     if section_key == "methods":
         lines = [
@@ -56,11 +141,23 @@ def _fallback_section_content(
             lines.append(f"Similar data normalization and manuscript preparation approaches have precedent in the literature [{slot_key}].")
         lines.extend(figure_placeholders)
         return "\n\n".join(lines)
-    if section_key == "results":
+    if section_key in {"results", "evaluation"}:
         lines = [
             f"The uploaded project currently contains {table_count} structured table(s). "
             "These normalized inputs are used to draft results narratives and track citation slots."
         ]
+        evidence_lines = _results_evidence_lines(results_context)
+        if evidence_lines:
+            lines.extend(evidence_lines)
+        else:
+            tables = list(results_context.get("tables") or [])
+            for table in tables[:3]:
+                columns = table.get("columns") or table.get("json_keys") or []
+                if columns:
+                    lines.append(
+                        f"The artifact `{table.get('filename', 'results')}` contains representative fields such as "
+                        f"{', '.join(str(column) for column in columns[:6])}."
+                    )
         lines.extend(figure_placeholders)
         return "\n\n".join(lines)
     if section_key == "discussion":
@@ -83,6 +180,7 @@ def run_draft(session: Session, project: Project) -> list[DraftSection]:
     outline = session.scalars(select(Outline).where(Outline.project_id == project.id).order_by(Outline.version.desc())).first()
     if profile is None or outline is None:
         raise ValueError("dataset profile and outline are required before drafting")
+    manuscript_context = load_manuscript_context(session, project, profile)
 
     slots = list(session.scalars(select(CitationSlot).where(CitationSlot.project_id == project.id).order_by(CitationSlot.section_key, CitationSlot.ordinal)))
     slot_map: dict[str, list[str]] = defaultdict(list)
@@ -95,9 +193,26 @@ def run_draft(session: Session, project: Project) -> list[DraftSection]:
         section_key = str(section.get("key") or "").strip()
         heading = str(section.get("heading") or section_key.title())
         figure_placeholders = _section_figure_placeholders(project, section_key, heading)
+        section_context = {
+            "introduction": manuscript_context.get("narrative_text"),
+            "system_overview": manuscript_context.get("narrative_text"),
+            "architecture": manuscript_context.get("supporting_text"),
+            "workflow": manuscript_context.get("supporting_text"),
+            "methods": manuscript_context.get("supporting_text"),
+            "results": manuscript_context.get("results_context"),
+            "evaluation": manuscript_context.get("results_context"),
+            "discussion": {
+                "contribution_points": manuscript_context.get("contribution_points"),
+                "results_context": manuscript_context.get("results_context"),
+            },
+        }.get(section_key, manuscript_context.get("narrative_text"))
         prompt = (
             f"Project: {project.title}\n"
             f"Objective: {project.objective}\n"
+            f"Preferred manuscript type: {manuscript_context.get('preferred_manuscript_type')}\n"
+            f"Contribution points: {manuscript_context.get('contribution_points')}\n"
+            f"Section-specific context: {section_context}\n"
+            f"Results context: {manuscript_context.get('results_context')}\n"
             f"Dataset profile: {profile.summary_json}\n"
             f"Section: {heading}\n"
             f"Citation placeholders: {slot_map.get(section_key, [])}\n"
@@ -111,7 +226,19 @@ def run_draft(session: Session, project: Project) -> list[DraftSection]:
             prompt,
         )
         if not content:
-            content = _fallback_section_content(project, profile, section_key, heading, slot_map.get(section_key, []))
+            content = _fallback_section_content(
+                project,
+                profile,
+                manuscript_context,
+                section_key,
+                heading,
+                slot_map.get(section_key, []),
+            )
+        content = _merge_structured_results_evidence(
+            content,
+            section_key,
+            manuscript_context.get("results_context") or {},
+        )
         draft = DraftSection(
             project_id=project.id,
             section_key=section_key,

@@ -39,6 +39,7 @@ def test_upload_artifact_to_owned_project(client, auth_cookie: str) -> None:
 
     response = client.post(
         f"/api/projects/{project['id']}/artifacts",
+        data={"roles": "results_table"},
         files={"files": ("results.csv", BytesIO(b"col1,col2\n1,2\n"), "text/csv")},
     )
 
@@ -46,6 +47,8 @@ def test_upload_artifact_to_owned_project(client, auth_cookie: str) -> None:
     payload = response.json()
     assert payload["items"][0]["filename"] == "results.csv"
     assert payload["items"][0]["size_bytes"] > 0
+    assert payload["items"][0]["role"] == "results_table"
+    assert payload["items"][0]["metadata_json"]["role"] == "results_table"
 
     workspace = client.get(f"/api/projects/{project['id']}/workspace")
 
@@ -53,6 +56,35 @@ def test_upload_artifact_to_owned_project(client, auth_cookie: str) -> None:
     body = workspace.json()
     assert len(body["artifacts"]) == 1
     assert body["artifacts"][0]["filename"] == "results.csv"
+    assert body["artifacts"][0]["role"] == "results_table"
+
+
+def test_update_artifact_role_marks_new_role_in_workspace(client, auth_cookie: str) -> None:
+    client.cookies.set("paper_session", auth_cookie)
+    project = client.post("/api/projects", json={"title": "Project A", "objective": "A"}).json()
+
+    upload = client.post(
+        f"/api/projects/{project['id']}/artifacts",
+        data={"roles": "supporting_doc"},
+        files={"files": ("notes.md", BytesIO(b"# Notes\nInitial content\n"), "text/markdown")},
+    )
+    assert upload.status_code == 201
+    artifact = upload.json()["items"][0]
+    assert artifact["role"] == "supporting_doc"
+
+    update = client.patch(
+        f"/api/projects/{project['id']}/artifacts/{artifact['id']}",
+        json={"role": "narrative_brief"},
+    )
+
+    assert update.status_code == 200
+    updated = update.json()
+    assert updated["role"] == "narrative_brief"
+    assert updated["metadata_json"]["role"] == "narrative_brief"
+
+    workspace = client.get(f"/api/projects/{project['id']}/workspace")
+    assert workspace.status_code == 200
+    assert workspace.json()["artifacts"][0]["role"] == "narrative_brief"
 
 
 def test_delete_artifact_removes_file_and_workspace_entry(client, auth_cookie: str) -> None:

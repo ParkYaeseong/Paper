@@ -13,6 +13,7 @@ def test_metadata_creates_expected_tables():
     assert {
         "projects",
         "artifacts",
+        "artifact_chunks",
         "dataset_profiles",
         "outlines",
         "draft_sections",

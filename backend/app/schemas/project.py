@@ -33,11 +33,13 @@ class ArtifactRead(BaseModel):
     id: str
     project_id: str
     kind: str
+    role: str
     filename: str
     content_type: str
     storage_path: str
     size_bytes: int
     sha256: str
+    metadata_json: dict | None = None
     created_at: datetime
     updated_at: datetime
 

@@ -5,6 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.models import CitationSlot, DatasetProfile, Outline, Project
 from app.services import llm
+from app.services.manuscript_context import load_manuscript_context
 
 
 def _outline_version(session: Session, project_id: str) -> int:
@@ -12,9 +13,67 @@ def _outline_version(session: Session, project_id: str) -> int:
     return int(version or 0) + 1
 
 
-def _fallback_outline(project: Project, profile: DatasetProfile) -> dict[str, object]:
+def _fallback_outline(project: Project, profile: DatasetProfile, manuscript_context: dict[str, object]) -> dict[str, object]:
     objective = project.objective or "Describe the uploaded research data and findings."
     table_count = profile.summary_json.get("dataset_summary", {}).get("table_count", 0)
+    manuscript_type = str(manuscript_context.get("preferred_manuscript_type") or "original_article")
+    contribution_points = list(manuscript_context.get("contribution_points") or [])
+    if manuscript_type == "system_paper":
+        return {
+            "manuscript_type": "system_paper",
+            "title_candidates": [
+                project.title,
+                f"{project.title}: a reproducible system for workflow orchestration and interactive analysis",
+            ],
+            "sections": [
+                {
+                    "key": "introduction",
+                    "heading": "Introduction",
+                    "claims": [
+                        "Multi-stage protein design workflows are often fragmented across heterogeneous tools and manual inspection steps.",
+                        "Interactive workflow systems can improve reproducibility and inspection in computational research software.",
+                    ],
+                },
+                {
+                    "key": "system_overview",
+                    "heading": "System Overview",
+                    "claims": contribution_points[:2],
+                },
+                {
+                    "key": "architecture",
+                    "heading": "Architecture",
+                    "claims": [],
+                },
+                {
+                    "key": "workflow",
+                    "heading": "Workflow",
+                    "claims": [],
+                },
+                {
+                    "key": "evaluation",
+                    "heading": "Evaluation",
+                    "claims": [],
+                    "notes": [f"The current upload contains {table_count} tabular dataset(s)."],
+                },
+                {
+                    "key": "discussion",
+                    "heading": "Discussion",
+                    "claims": [
+                        "Safe rerun semantics and explicit artifact tracking can reduce workflow errors in iterative computational studies.",
+                    ],
+                },
+                {
+                    "key": "limitations",
+                    "heading": "Limitations",
+                    "claims": [],
+                },
+                {
+                    "key": "conclusion",
+                    "heading": "Conclusion",
+                    "claims": [],
+                },
+            ],
+        }
     return {
         "manuscript_type": "original_article",
         "title_candidates": [
@@ -65,7 +124,7 @@ def _fallback_outline(project: Project, profile: DatasetProfile) -> dict[str, ob
     }
 
 
-def _build_outline(project: Project, profile: DatasetProfile) -> dict[str, object]:
+def _build_outline(project: Project, profile: DatasetProfile, manuscript_context: dict[str, object]) -> dict[str, object]:
     system_prompt = (
         "You are planning a scientific manuscript. Return JSON with manuscript_type, "
         "title_candidates, and sections. Each section needs key, heading, and claims."
@@ -73,13 +132,19 @@ def _build_outline(project: Project, profile: DatasetProfile) -> dict[str, objec
     user_prompt = (
         f"Project title: {project.title}\n"
         f"Objective: {project.objective}\n"
+        f"Preferred manuscript type: {manuscript_context.get('preferred_manuscript_type')}\n"
+        f"Narrative brief:\n{manuscript_context.get('narrative_text')}\n\n"
+        f"Supporting docs:\n{manuscript_context.get('supporting_text')}\n\n"
+        f"Contribution points:\n{manuscript_context.get('contribution_points')}\n\n"
+        f"Results context:\n{manuscript_context.get('results_context')}\n\n"
         f"Dataset profile:\n{profile.summary_json}\n"
-        "Return a concise manuscript outline with citation-worthy claims in introduction, methods, and discussion."
+        "Return a concise manuscript outline with citation-worthy claims in introduction and discussion. "
+        "If the project is a system paper, prefer sections such as System Overview, Architecture, Workflow, and Evaluation."
     )
     llm_result = llm.openai_chat_json(system_prompt, user_prompt)
     if isinstance(llm_result, dict):
         return llm_result
-    return _fallback_outline(project, profile)
+    return _fallback_outline(project, profile, manuscript_context)
 
 
 def run_plan(session: Session, project: Project) -> Outline:
@@ -89,7 +154,8 @@ def run_plan(session: Session, project: Project) -> Outline:
     if profile is None:
         raise ValueError("dataset profile is required before planning")
 
-    outline_data = _build_outline(project, profile)
+    manuscript_context = load_manuscript_context(session, project, profile)
+    outline_data = _build_outline(project, profile, manuscript_context)
     outline = Outline(
         project_id=project.id,
         version=_outline_version(session, project.id),

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, Response, UploadFile, status
 from fastapi.responses import FileResponse
+from pydantic import BaseModel
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.artifact_roles import infer_artifact_role
 from app.db import get_db_session
 from app.deps import require_user
 from app.models import Artifact, Project
@@ -15,6 +17,10 @@ from app.services.storage import delete_project_storage, delete_stored_file, sav
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
+
+
+class ArtifactRoleUpdate(BaseModel):
+    role: str
 
 
 def _is_admin(user: dict) -> bool:
@@ -89,14 +95,17 @@ async def upload_artifacts(
     project_id: str,
     request: Request,
     files: list[UploadFile] = File(...),
+    roles: list[str] = Form(default=[]),
     user: dict = Depends(require_user),
     session: Session = Depends(get_db_session),
 ) -> ArtifactListResponse:
     project = _get_project_or_403(session, project_id, user)
     settings = request.app.state.settings
+    if roles and len(roles) != len(files):
+        raise HTTPException(status_code=400, detail="A role must be supplied for each uploaded file")
 
     stored_items: list[Artifact] = []
-    for upload in files:
+    for index, upload in enumerate(files):
         stored = await save_upload_file(settings, project.id, upload)
         artifact = Artifact(
             project_id=project.id,
@@ -107,6 +116,7 @@ async def upload_artifacts(
             size_bytes=int(stored["size_bytes"]),
             sha256=str(stored["sha256"]),
         )
+        artifact.set_role(infer_artifact_role(str(stored["filename"]), requested_role=roles[index] if roles else None))
         session.add(artifact)
         stored_items.append(artifact)
     session.commit()
@@ -131,6 +141,25 @@ def delete_artifact(
     session.delete(artifact)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.patch("/{project_id}/artifacts/{artifact_id}", response_model=ArtifactRead)
+def update_artifact(
+    project_id: str,
+    artifact_id: str,
+    payload: ArtifactRoleUpdate,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_db_session),
+) -> Artifact:
+    project = _get_project_or_403(session, project_id, user)
+    artifact = session.scalar(select(Artifact).where(Artifact.project_id == project.id, Artifact.id == artifact_id))
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    artifact.set_role(payload.role)
+    session.add(artifact)
+    session.commit()
+    session.refresh(artifact)
+    return artifact
 
 
 @router.get("/{project_id}/artifacts/{artifact_id}/download")

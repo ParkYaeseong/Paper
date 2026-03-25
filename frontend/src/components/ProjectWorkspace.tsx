@@ -1,3 +1,4 @@
+import type { ArtifactRole } from "../lib/artifactRoles";
 import type { Workspace } from "../lib/types";
 
 import DraftPanel from "./DraftPanel";
@@ -13,12 +14,13 @@ import { useState } from "react";
 
 type ProjectWorkspaceProps = {
   onDeleteArtifact: (artifactId: string) => Promise<void>;
+  onUpdateArtifactRole: (artifactId: string, role: ArtifactRole) => Promise<void>;
   onRunExport: (mode: "draft" | "final") => Promise<void>;
   pendingStage: string | null;
   workspace: Workspace;
   onRunStageWithInput: (stage: string, input?: { mode?: string }) => Promise<void>;
   onSelectFigureAsset: (figureSpecId: string, figureAssetId: string) => Promise<void>;
-  onUploadFiles: (files: File[]) => Promise<void>;
+  onUploadFiles: (uploads: Array<{ file: File; role: ArtifactRole }>) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
   onSaveSection: (sectionId: string, content: string) => Promise<void>;
   onReviewSlot: (slotId: string, status: string, selectedReferenceIds?: string[]) => Promise<void>;
@@ -27,6 +29,7 @@ type ProjectWorkspaceProps = {
 
 export default function ProjectWorkspace({
   onDeleteArtifact,
+  onUpdateArtifactRole,
   onRunExport,
   pendingStage,
   workspace,
@@ -67,6 +70,7 @@ export default function ProjectWorkspace({
           pendingStage={pendingStage}
           showManualControls={advancedOpen}
           onDeleteArtifact={onDeleteArtifact}
+          onUpdateArtifactRole={onUpdateArtifactRole}
           onRunStage={onRunStage}
           onUploadFiles={onUploadFiles}
           project={workspace.project}

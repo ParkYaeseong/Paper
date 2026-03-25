@@ -12,6 +12,14 @@ from app.db import Base, get_db_session
 from app.main import create_app
 
 
+@pytest.fixture(autouse=True)
+def disable_live_llm(monkeypatch: pytest.MonkeyPatch):
+    from app.services import llm
+
+    monkeypatch.setattr(llm, "OPENAI_API_KEY", "", raising=False)
+    monkeypatch.setattr(llm, "GEMINI_API_KEY", "", raising=False)
+
+
 @pytest.fixture
 def testing_session_factory(monkeypatch: pytest.MonkeyPatch, tmp_path):
     monkeypatch.setenv("PAPER_OIDC_ISSUER", "https://sso.example.com/realms/kbf")

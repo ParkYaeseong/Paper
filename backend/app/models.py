@@ -6,6 +6,7 @@ import uuid
 from sqlalchemy import DateTime, Float, ForeignKey, Integer, JSON, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.artifact_roles import normalize_artifact_role
 from app.db import Base
 
 
@@ -38,6 +39,10 @@ class Project(TimestampMixin, Base):
     status: Mapped[str] = mapped_column(String(50), default="draft", nullable=False)
 
     artifacts: Mapped[list["Artifact"]] = relationship(back_populates="project", cascade="all, delete-orphan")
+    artifact_chunks: Mapped[list["ArtifactChunk"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
     dataset_profiles: Mapped[list["DatasetProfile"]] = relationship(
         back_populates="project",
         cascade="all, delete-orphan",
@@ -96,10 +101,39 @@ class Artifact(TimestampMixin, Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSON, default=dict)
 
     project: Mapped[Project] = relationship(back_populates="artifacts")
+    chunks: Mapped[list["ArtifactChunk"]] = relationship(
+        back_populates="artifact",
+        cascade="all, delete-orphan",
+    )
     figure_assets: Mapped[list["FigureAsset"]] = relationship(
         back_populates="artifact",
         cascade="all, delete-orphan",
     )
+
+    @property
+    def role(self) -> str:
+        return normalize_artifact_role((self.metadata_json or {}).get("role"))
+
+    def set_role(self, role: str | None) -> None:
+        metadata = dict(self.metadata_json or {})
+        metadata["role"] = normalize_artifact_role(role)
+        self.metadata_json = metadata
+
+
+class ArtifactChunk(TimestampMixin, Base):
+    __tablename__ = "artifact_chunks"
+    __table_args__ = (UniqueConstraint("artifact_id", "ordinal", name="uq_artifact_chunk_ordinal"),)
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    artifact_id: Mapped[str] = mapped_column(ForeignKey("artifacts.id", ondelete="CASCADE"), nullable=False, index=True)
+    role: Mapped[str] = mapped_column(String(50), nullable=False, index=True)
+    ordinal: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    heading: Mapped[str] = mapped_column(String(500), default="", nullable=False)
+    content: Mapped[str] = mapped_column(Text, default="", nullable=False)
+
+    project: Mapped[Project] = relationship(back_populates="artifact_chunks")
+    artifact: Mapped[Artifact] = relationship(back_populates="chunks")
 
 
 class DatasetProfile(TimestampMixin, Base):

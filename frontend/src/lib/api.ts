@@ -5,6 +5,7 @@ import type {
   User,
   Workspace
 } from "./types";
+import type { ArtifactRole } from "./artifactRoles";
 
 
 async function apiFetch<T>(path: string, init?: RequestInit): Promise<T> {
@@ -81,9 +82,12 @@ export async function deleteProject(projectId: string) {
   }
 }
 
-export function uploadArtifacts(projectId: string, files: File[]) {
+export function uploadArtifacts(projectId: string, uploads: Array<{ file: File; role: ArtifactRole }>) {
   const form = new FormData();
-  files.forEach((file) => form.append("files", file));
+  uploads.forEach(({ file, role }) => {
+    form.append("files", file);
+    form.append("roles", role);
+  });
   return apiFetch(`/api/projects/${projectId}/artifacts`, {
     method: "POST",
     body: form
@@ -101,6 +105,14 @@ export async function deleteArtifact(projectId: string, artifactId: string) {
   if (!response.ok) {
     throw new Error(await response.text());
   }
+}
+
+export function updateArtifactRole(projectId: string, artifactId: string, role: ArtifactRole) {
+  return apiFetch(`/api/projects/${projectId}/artifacts/${artifactId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ role })
+  });
 }
 
 export function getWorkspace(projectId: string): Promise<Workspace> {

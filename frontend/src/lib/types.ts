@@ -52,6 +52,8 @@ export type Artifact = {
   storage_path: string;
   size_bytes: number;
   sha256: string;
+  role: string;
+  metadata_json?: Record<string, unknown> | null;
   created_at: string;
   updated_at: string;
 };

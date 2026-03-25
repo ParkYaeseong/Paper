@@ -132,11 +132,13 @@ def _serialize_artifact(artifact: Artifact) -> dict[str, object]:
         "id": artifact.id,
         "project_id": artifact.project_id,
         "kind": artifact.kind,
+        "role": artifact.role,
         "filename": artifact.filename,
         "content_type": artifact.content_type,
         "storage_path": artifact.storage_path,
         "size_bytes": artifact.size_bytes,
         "sha256": artifact.sha256,
+        "metadata_json": artifact.metadata_json or {},
         "created_at": _serialize_datetime(artifact.created_at),
         "updated_at": _serialize_datetime(artifact.updated_at),
     }
