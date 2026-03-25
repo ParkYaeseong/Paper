@@ -1,6 +1,6 @@
 # Paper Authoring Studio
 
-KBF SSO-protected manuscript authoring app for turning uploaded internal research artifacts into a citation-aware draft, quality-audited review workspace, PaperBanana figure candidates, and gated export bundles.
+KBF SSO-protected manuscript authoring app for turning uploaded internal research artifacts into a citation-aware draft, quality-audited review workspace, PaperBanana-ready figure handoff text, and gated export bundles.
 
 ## What is implemented
 
@@ -8,17 +8,17 @@ KBF SSO-protected manuscript authoring app for turning uploaded internal researc
 - Project CRUD and artifact uploads
 - Ingest, plan, draft, evidence, quality, figures, run-all, and export pipeline stages
 - Redis/RQ-backed async job execution with a dedicated worker process
-- React/Vite SPA for guided run-all execution, quality review, figure selection, draft editing, evidence review, and export download
+- React/Vite SPA for guided run-all execution, quality review, figure handoff review, draft editing, evidence review, and export download
 - Canonical export generation for JSON, Markdown, BibTeX, and DOCX
 - Draft vs Final export gating based on the latest quality report
-- PaperBanana-backed figure candidate generation from manuscript placeholders
+- PaperBanana-ready figure caption and method-content handoff generation from manuscript placeholders
 
 ## Current v1 behavior
 
 - Pipeline stages are enqueued by the API and executed by a separate worker.
 - If `OPENAI_API_KEY` or `GEMINI_API_KEY` is missing, the app falls back to deterministic local heuristics.
 - Retrieval uses PubMed and OpenAlex directly.
-- `Run All` executes `ingest -> plan -> draft -> evidence -> quality -> figures` and refreshes quality after figure generation.
+- `Run All` executes `ingest -> plan -> draft -> evidence -> quality -> figures` and refreshes quality after figure handoff preparation.
 - `Draft Export` is always available. `Final Export` is blocked until the latest quality report has no critical issues.
 
 ## Repo layout
@@ -72,19 +72,18 @@ docker compose up -d --build
 
 The frontend is published on `http://127.0.0.1:18092`. The backend is also exposed on `http://127.0.0.1:18093` for direct API debugging. Redis and the worker are internal services in the same stack.
 
-### Optional PaperBanana runtime
+### PaperBanana handoff
 
-If you want automatic figure generation, make sure `/opt/PaperBanana` is available and configured with image-generation credentials. The Paper worker calls:
+Paper no longer calls PaperBanana directly during the `figures` stage.
 
-```bash
-python /opt/PaperBanana/skill/run.py
-```
+Instead, Figure Review prepares:
 
-You can override the runtime with:
+- `Method Section Content (Markdown recommended)`
+- `Figure Caption (Markdown recommended)`
 
-- `PAPER_PAPERBANANA_ROOT`
-- `PAPER_PAPERBANANA_PYTHON`
-- `PAPER_PAPERBANANA_CANDIDATES`
+Users then open PaperBanana separately, paste the prepared text, and choose advanced settings there such as pipeline mode, aspect ratio, candidate count, and refinement options.
+
+If you want a recommended manual default in PaperBanana, use `demo_planner_critic` unless you specifically need the heavier stylist pass.
 
 ## Tests
 

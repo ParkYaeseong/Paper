@@ -180,6 +180,7 @@ def _serialize_figure_spec(spec: FigureSpec) -> dict[str, object]:
         "figure_number": spec.figure_number,
         "caption_draft": spec.caption_draft,
         "source_excerpt": spec.source_excerpt,
+        "method_section_content": spec.method_section_content,
         "visual_intent": spec.visual_intent,
         "status": spec.status,
         "selected_figure_asset_id": next((asset.id for asset in assets if asset.selected), None),

@@ -19,7 +19,6 @@ type ProjectWorkspaceProps = {
   pendingStage: string | null;
   workspace: Workspace;
   onRunStageWithInput: (stage: string, input?: { mode?: string }) => Promise<void>;
-  onSelectFigureAsset: (figureSpecId: string, figureAssetId: string) => Promise<void>;
   onUploadFiles: (uploads: Array<{ file: File; role: ArtifactRole }>) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
   onSaveSection: (sectionId: string, content: string) => Promise<void>;
@@ -34,7 +33,6 @@ export default function ProjectWorkspace({
   pendingStage,
   workspace,
   onRunStageWithInput,
-  onSelectFigureAsset,
   onUploadFiles,
   onRunStage,
   onSaveSection,
@@ -111,7 +109,6 @@ export default function ProjectWorkspace({
           figureSpecs={workspace.figure_specs}
           jobs={workspace.jobs}
           onRunStage={() => onRunStageWithInput("figures")}
-          onSelectFigureAsset={onSelectFigureAsset}
           pendingStage={pendingStage}
           showManualControls={advancedOpen}
         />

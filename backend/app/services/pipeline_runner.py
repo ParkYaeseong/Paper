@@ -73,7 +73,7 @@ def ensure_stage_prerequisites(session: Session, project_id: str, stage: str) ->
     if stage == "figures":
         section = session.scalars(select(DraftSection).where(DraftSection.project_id == project_id)).first()
         if section is None:
-            raise ValueError("Drafting must complete before figure generation")
+            raise ValueError("Drafting must complete before figure handoff preparation")
 
 
 def _update_job_log(session: Session, job_id: str | None, message: str) -> None:

@@ -16,7 +16,7 @@ type GuideContent = {
 export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
   en: {
     title: "Usage Guide",
-    intro: "Use this workflow when you want to turn project files into a review-ready manuscript with grounded citations, quality checks, generated figure candidates, and gated exports.",
+    intro: "Use this workflow when you want to turn project files into a review-ready manuscript with grounded citations, quality checks, figure handoff text for PaperBanana, and gated exports.",
     quickStartTitle: "Quick Start",
     quickStartSteps: [
       "Upload Selected Files",
@@ -35,9 +35,9 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
     ],
     nextTitle: "What Happens Next",
     nextItems: [
-      "Run All sequences ingest, plan, draft, evidence, quality audit, and figure generation automatically.",
+      "Run All sequences ingest, plan, draft, evidence, quality audit, and figure handoff preparation automatically.",
       "Quality Summary shows critical issues, warnings, and recommended actions.",
-      "Figure Review shows generated PaperBanana figure candidates and lets you change the selected asset.",
+      "Figure Review prepares copyable method-section content and captions for PaperBanana.",
       "Draft Export always creates a working manuscript bundle.",
       "Final Export unlocks only after the latest quality report has no critical issues.",
       "If uploaded files change, run Run Ingest again to refresh the project profile.",
@@ -47,13 +47,13 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
     mistakesItems: [
       "Uploading only literature PDFs and expecting a manuscript draft immediately.",
       "Ignoring Quality Summary and assuming a draft export is submission-ready.",
-      "Skipping Figure Review when the manuscript still depends on generated visuals.",
+      "Skipping Figure Review when the manuscript still needs PaperBanana-ready figure handoff text.",
       "Forgetting to rerun ingest after adding or deleting uploaded files.",
     ],
   },
   ko: {
     title: "사용 가이드",
-    intro: "이 워크플로우는 프로젝트 파일을 업로드한 뒤 초안 작성, 문헌 grounding, 품질 점검, 그림 후보 생성, gated export까지 순서대로 진행할 때 사용합니다.",
+    intro: "이 워크플로우는 프로젝트 파일을 업로드한 뒤 초안 작성, 문헌 grounding, 품질 점검, PaperBanana용 그림 handoff 텍스트 준비, gated export까지 순서대로 진행할 때 사용합니다.",
     quickStartTitle: "빠른 시작",
     quickStartSteps: [
       "Upload Selected Files",
@@ -72,9 +72,9 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
     ],
     nextTitle: "그 다음에는 무엇을 하나요?",
     nextItems: [
-      "Run All은 ingest, plan, draft, evidence, quality audit, figure generation을 자동으로 순서대로 실행합니다.",
+      "Run All은 ingest, plan, draft, evidence, quality audit, figure handoff preparation을 자동으로 순서대로 실행합니다.",
       "Quality Summary는 critical issue, warning, recommended action을 보여줍니다.",
-      "Figure Review는 생성된 PaperBanana 그림 후보를 보여주고 선택을 바꿀 수 있게 합니다.",
+      "Figure Review는 PaperBanana에 붙여 넣을 method section content와 caption을 준비해 줍니다.",
       "Draft Export는 작업용 초안을 항상 내보냅니다.",
       "Final Export는 최신 quality report에 critical issue가 없을 때만 활성화됩니다.",
       "업로드한 파일이 바뀌면 Run Ingest를 다시 실행하세요.",
@@ -84,7 +84,7 @@ export const GUIDE_CONTENT: Record<GuideLanguage, GuideContent> = {
     mistakesItems: [
       "참고 논문 PDF만 올리고 바로 초안이 나오길 기대하는 것.",
       "Quality Summary를 보지 않고 Draft Export를 제출본처럼 사용하는 것.",
-      "Figure Review를 건너뛰고 그림 후보를 확인하지 않는 것.",
+      "Figure Review를 건너뛰고 PaperBanana에 넣을 그림 handoff 텍스트를 준비하지 않는 것.",
       "파일을 추가하거나 삭제한 뒤 ingest를 다시 실행하지 않는 것.",
     ],
   },

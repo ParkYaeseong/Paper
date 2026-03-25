@@ -5,8 +5,12 @@ import FigureReviewPanel from "./FigureReviewPanel";
 
 
 describe("FigureReviewPanel", () => {
-  it("renders figure candidates and allows selecting a candidate", async () => {
-    const onSelectFigureAsset = vi.fn().mockResolvedValue(undefined);
+  it("renders figure handoff content and copies caption and method text", async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined);
+    Object.defineProperty(navigator, "clipboard", {
+      value: { writeText },
+      configurable: true,
+    });
 
     render(
       <FigureReviewPanel
@@ -18,49 +22,40 @@ describe("FigureReviewPanel", () => {
             figure_number: 1,
             caption_draft: "Overall workflow architecture.",
             source_excerpt: "The workflow combines upload, orchestration, and review.",
+            method_section_content: "### Methods\n\nThe workflow combines upload, orchestration, and review.",
             visual_intent: "Show the overall workflow.",
-            status: "generated",
-            selected_figure_asset_id: "figure-asset-1",
-            assets: [
-              {
-                id: "figure-asset-1",
-                artifact_id: "artifact-1",
-                provider: "paperbanana",
-                status: "generated",
-                selected: true,
-                filename: "figure_1_a.png",
-                storage_path: "/tmp/figure_1_a.png",
-                download_url: "/api/projects/project-1/artifacts/artifact-1/download",
-                created_at: "2026-03-25T00:00:00Z",
-                updated_at: "2026-03-25T00:00:00Z",
-              },
-              {
-                id: "figure-asset-2",
-                artifact_id: "artifact-2",
-                provider: "paperbanana",
-                status: "generated",
-                selected: false,
-                filename: "figure_1_b.png",
-                storage_path: "/tmp/figure_1_b.png",
-                download_url: "/api/projects/project-1/artifacts/artifact-2/download",
-                created_at: "2026-03-25T00:00:00Z",
-                updated_at: "2026-03-25T00:00:00Z",
-              },
-            ],
+            status: "prepared",
+            selected_figure_asset_id: null,
+            assets: [],
           },
         ]}
         onRunStage={vi.fn().mockResolvedValue(undefined)}
-        onSelectFigureAsset={onSelectFigureAsset}
         showManualControls
       />,
     );
 
     expect(screen.getByText("Figure 1")).toBeInTheDocument();
-    expect(screen.getByText("Overall workflow architecture.")).toBeInTheDocument();
-    expect(screen.getByText("Selected")).toBeInTheDocument();
+    expect(screen.getAllByText("Overall workflow architecture.")).toHaveLength(2);
+    expect(
+      screen.getByText((content) => content.includes("### Methods") && content.includes("The workflow combines upload, orchestration, and review.")),
+    ).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Select figure_1_b.png" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy method content" }));
+    fireEvent.click(screen.getByRole("button", { name: "Copy figure caption" }));
 
-    expect(onSelectFigureAsset).toHaveBeenCalledWith("figure-spec-1", "figure-asset-2");
+    expect(writeText).toHaveBeenNthCalledWith(1, "### Methods\n\nThe workflow combines upload, orchestration, and review.");
+    expect(writeText).toHaveBeenNthCalledWith(2, "Overall workflow architecture.");
+  });
+
+  it("shows the new text handoff empty state", () => {
+    render(
+      <FigureReviewPanel
+        figureSpecs={[]}
+        onRunStage={vi.fn().mockResolvedValue(undefined)}
+        showManualControls
+      />,
+    );
+
+    expect(screen.getByText("No figure handoff text yet. Run All or the figure stage to prepare PaperBanana-ready caption and method content.")).toBeInTheDocument();
   });
 });

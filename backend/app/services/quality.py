@@ -57,7 +57,7 @@ def _recommended_actions(critical_issues: list[dict[str, object]], warnings: lis
     if {"unresolved_citation_token", "manual_review_marker"} & codes:
         actions.append("Resolve remaining citation placeholders and manual review markers in the draft.")
     if "unresolved_figure_placeholder" in codes:
-        actions.append("Generate or select figure candidates for every figure placeholder.")
+        actions.append("Prepare figure handoff text for every figure placeholder.")
     if "missing_required_section" in codes:
         actions.append("Add the missing core manuscript sections before requesting a final export.")
     if {"generic_results_section", "missing_positioning_context"} & warning_codes:
@@ -122,12 +122,11 @@ def run_quality_audit(session: Session, project: Project) -> QualityReport:
             figure_number = int(match.group(1))
             figure_key = f"FIGURE_{figure_number}"
             spec = specs.get(figure_key)
-            selected_asset = None if spec is None else next((asset for asset in spec.figure_assets if asset.selected), None)
-            if selected_asset is None:
+            if spec is None or not spec.caption_draft.strip() or not spec.method_section_content.strip():
                 _add_issue(
                     critical_issues,
                     "unresolved_figure_placeholder",
-                    f"Figure {figure_number} does not have a selected generated asset.",
+                    f"Figure {figure_number} does not have prepared handoff text.",
                     section_key=section.section_key,
                     figure_key=figure_key,
                 )

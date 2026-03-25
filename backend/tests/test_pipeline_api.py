@@ -1,14 +1,7 @@
 from __future__ import annotations
 
-from base64 import b64decode
 from io import BytesIO
 from pathlib import Path
-
-
-PNG_1X1 = b64decode(
-    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAusB9VE3D8sAAAAASUVORK5CYII="
-)
-
 
 def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, monkeypatch, db_session_factory, tmp_path) -> None:
     client.cookies.set("paper_session", auth_cookie)
@@ -45,9 +38,6 @@ def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, 
         ],
     )
     monkeypatch.setattr("app.services.retrieval.search_openalex", lambda query, limit=5: [])
-    generated = tmp_path / "figure_0.png"
-    generated.write_bytes(PNG_1X1)
-    monkeypatch.setattr("app.services.figures.generate_paperbanana_candidates", lambda **_: [generated])
     monkeypatch.setattr("app.api.routes.workspace.enqueue_pipeline_job", lambda settings, job_id: job_id, raising=False)
 
     from app.jobs import process_pipeline_job
@@ -78,6 +68,7 @@ def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, 
     assert len(body["evidence_matches"]) >= 1
     assert body["quality_report"]["submission_ready"] is True
     assert len(body["figure_specs"]) >= 1
+    assert body["figure_specs"][0]["method_section_content"]
     assert body["export_bundle"]["manifest_json"]["docx_path"].endswith(".docx")
 
     markdown = Path(body["export_bundle"]["manifest_json"]["markdown_path"]).read_text(encoding="utf-8")

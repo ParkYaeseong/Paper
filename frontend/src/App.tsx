@@ -19,7 +19,6 @@ import {
   logout,
   runPipelineStage,
   runPipelineStageWithInput,
-  updateFigureSpec,
   updateArtifactRole,
   updateCitationSlot,
   updateDraftSection,
@@ -313,12 +312,6 @@ export default function App() {
     await refreshWorkspace(selectedProjectId);
   }
 
-  async function handleSelectFigureAsset(figureSpecId: string, figureAssetId: string) {
-    if (!selectedProjectId) return;
-    await updateFigureSpec(selectedProjectId, figureSpecId, { figure_asset_id: figureAssetId });
-    await refreshWorkspace(selectedProjectId);
-  }
-
   if (loading) {
     return <div className="loading-shell">Loading Paper Authoring Studio...</div>;
   }
@@ -355,7 +348,6 @@ export default function App() {
             onRunStage={handleRunStage}
             onRunStageWithInput={handleRunStageWithInput}
             onSaveSection={handleSaveSection}
-            onSelectFigureAsset={handleSelectFigureAsset}
             onUploadFiles={handleUploadFiles}
             workspace={workspace}
           />

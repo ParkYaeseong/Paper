@@ -138,22 +138,21 @@ def _content_paragraphs(content: str) -> list[str]:
     return [paragraph.strip() for paragraph in re.split(r"\n\s*\n", content) if paragraph.strip()]
 
 
-def _selected_figure_assets(session: Session, project_id: str) -> dict[int, dict[str, object]]:
+def _figure_details(session: Session, project_id: str) -> dict[int, dict[str, object]]:
     specs = list(
         session.scalars(select(FigureSpec).where(FigureSpec.project_id == project_id).order_by(FigureSpec.figure_number)).all()
     )
-    selected: dict[int, dict[str, object]] = {}
+    details: dict[int, dict[str, object]] = {}
     for spec in specs:
         asset = next((item for item in spec.figure_assets if item.selected and item.artifact is not None), None)
-        if asset is None:
-            continue
-        selected[spec.figure_number] = {
+        details[spec.figure_number] = {
             "figure_key": spec.figure_key,
             "caption": spec.caption_draft,
-            "artifact_path": asset.artifact.storage_path,
-            "asset_id": asset.id,
+            "artifact_path": "" if asset is None else asset.artifact.storage_path,
+            "asset_id": None if asset is None else asset.id,
+            "method_section_content": spec.method_section_content,
         }
-    return selected
+    return details
 
 
 def _render_text_only(paragraph: str, slot_numbers: dict[str, int]) -> str:
@@ -171,7 +170,7 @@ def _render_blocks(
     content: str,
     heading: str,
     slot_numbers: dict[str, int],
-    selected_figures: dict[int, dict[str, object]],
+    figure_details: dict[int, dict[str, object]],
 ) -> list[dict[str, object]]:
     normalized = _strip_duplicate_heading(content, heading)
     blocks: list[dict[str, object]] = []
@@ -179,12 +178,12 @@ def _render_blocks(
         match = FIGURE_PLACEHOLDER_RE.fullmatch(paragraph.strip())
         if match:
             figure_number = int(match.group(1))
-            figure_info = selected_figures.get(figure_number)
+            figure_info = figure_details.get(figure_number)
             blocks.append(
                 {
                     "type": "figure",
                     "figure_number": figure_number,
-                    "caption": match.group(2).strip(),
+                    "caption": match.group(2).strip() if figure_info is None else str(figure_info["caption"]),
                     "artifact_path": None if figure_info is None else figure_info["artifact_path"],
                 }
             )
@@ -227,7 +226,7 @@ def run_export(session: Session, project: Project, settings: Settings, *, mode: 
     slot_numbers, numbered_refs = _citation_numbering(session, project.id)
     outline = _latest_outline(session, project.id)
     sections = _latest_sections(session, project.id)
-    selected_figures = _selected_figure_assets(session, project.id)
+    figure_details = _figure_details(session, project.id)
 
     md_lines = [f"# {project.title}", ""]
     if outline is not None:
@@ -236,7 +235,7 @@ def run_export(session: Session, project: Project, settings: Settings, *, mode: 
     for section in sections:
         md_lines.append(f"## {section.heading}")
         md_lines.append("")
-        for block in _render_blocks(section.content, section.heading, slot_numbers, selected_figures):
+        for block in _render_blocks(section.content, section.heading, slot_numbers, figure_details):
             if block["type"] == "text":
                 md_lines.append(str(block["content"]))
                 md_lines.append("")
@@ -272,7 +271,7 @@ def run_export(session: Session, project: Project, settings: Settings, *, mode: 
                         if block["artifact_path"]
                         else f"Figure {int(block['figure_number'])}. Suggested insert: {str(block['caption'])}"
                     )
-                    for block in _render_blocks(section.content, section.heading, slot_numbers, selected_figures)
+                    for block in _render_blocks(section.content, section.heading, slot_numbers, figure_details)
                 ),
             }
             for section in sections
@@ -291,8 +290,9 @@ def run_export(session: Session, project: Project, settings: Settings, *, mode: 
                 "figure_number": figure_number,
                 "artifact_path": details["artifact_path"],
                 "caption": details["caption"],
+                "method_section_content": details["method_section_content"],
             }
-            for figure_number, details in sorted(selected_figures.items())
+            for figure_number, details in sorted(figure_details.items())
         ],
     }
 
@@ -307,7 +307,7 @@ def run_export(session: Session, project: Project, settings: Settings, *, mode: 
     document.add_heading(project.title, level=0)
     for section in sections:
         document.add_heading(section.heading, level=1)
-        for block in _render_blocks(section.content, section.heading, slot_numbers, selected_figures):
+        for block in _render_blocks(section.content, section.heading, slot_numbers, figure_details):
             if block["type"] == "text":
                 document.add_paragraph(str(block["content"]))
                 continue

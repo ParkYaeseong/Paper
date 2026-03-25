@@ -156,6 +156,7 @@ export type FigureSpec = {
   figure_number: number;
   caption_draft: string;
   source_excerpt: string;
+  method_section_content: string;
   visual_intent: string;
   status: string;
   selected_figure_asset_id: string | null;

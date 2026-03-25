@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 from app.config import get_settings
-from app.models import CitationSlot, DraftSection, EvidenceMatch, Project, QualityReport, ReferenceRecord
+from app.models import CitationSlot, DraftSection, EvidenceMatch, FigureSpec, Project, QualityReport, ReferenceRecord
 from app.services.exporting import run_export
 
 
@@ -136,6 +136,20 @@ def test_run_export_normalizes_citation_variants_and_figure_placeholders(db_sess
         session.commit()
 
         session.add(
+            FigureSpec(
+                project_id=project.id,
+                section_key="introduction",
+                figure_key="FIGURE_1",
+                figure_number=1,
+                caption_draft="Prepared handoff caption for PaperBanana.",
+                source_excerpt="Protein design workflows are often fragmented.",
+                visual_intent="### Introduction\n\nProtein design workflows are often fragmented.",
+                status="prepared",
+            )
+        )
+        session.commit()
+
+        session.add(
             QualityReport(
                 project_id=project.id,
                 version=1,
@@ -153,13 +167,13 @@ def test_run_export_normalizes_citation_variants_and_figure_placeholders(db_sess
         assert markdown.count("## Introduction") == 1
         assert "fragmented [1, 2]." in markdown
         assert "orchestration [1]." in markdown
-        assert "Figure 1. Suggested insert: Overall protein_pipeline architecture and stage flow." in markdown
+        assert "Figure 1. Suggested insert: Prepared handoff caption for PaperBanana." in markdown
         assert "Expert review remains necessary [manual review]." in markdown
         assert "## References" in markdown
         assert "Automated protein design workflows improve reproducibility" in markdown
 
         docx_text = _docx_text(Path(bundle.manifest_json["docx_path"]))
-        assert "Figure 1. Suggested insert: Overall protein_pipeline architecture and stage flow." in docx_text
+        assert "Figure 1. Suggested insert: Prepared handoff caption for PaperBanana." in docx_text
         assert "Expert review remains necessary [manual review]." in docx_text
 
 

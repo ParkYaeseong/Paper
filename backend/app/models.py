@@ -284,6 +284,14 @@ class FigureSpec(TimestampMixin, Base):
         cascade="all, delete-orphan",
     )
 
+    @property
+    def method_section_content(self) -> str:
+        return self.visual_intent
+
+    @method_section_content.setter
+    def method_section_content(self, value: str) -> None:
+        self.visual_intent = value
+
 
 class FigureAsset(TimestampMixin, Base):
     __tablename__ = "figure_assets"

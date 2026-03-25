@@ -47,7 +47,7 @@ const STAGE_META: Record<string, StageMeta> = {
   figures: {
     label: "Figures",
     runningLabel: "Figures Running...",
-    description: "Generating figure candidates from manuscript placeholders.",
+    description: "Preparing PaperBanana-ready figure handoff text from manuscript placeholders.",
   },
   run_all: {
     label: "Run All",
