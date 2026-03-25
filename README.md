@@ -123,6 +123,10 @@ Use the KBF issuer pattern already used by adjacent services:
 - `PAPER_OIDC_CLIENT_ID=paper`
 - `PAPER_SESSION_COOKIE_SECURE=true`
 
+### Portal logout fanout
+
+The frontend now serves `logout-bridge.html` so the KBF portal can clear the Paper session during cross-app logout fanout. Keep the public host on the same origin as the SPA so `fetch('/api/auth/logout')` continues to work from the bridge asset.
+
 ## Primary files
 
 - backend app entry: `backend/app/main.py`

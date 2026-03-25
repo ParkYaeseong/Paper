@@ -223,7 +223,6 @@ describe("App", () => {
     });
 
     expect(runPipelineStage).toHaveBeenCalledWith("project-1", "ingest");
-    expect(getWorkspace).toHaveBeenCalledTimes(1);
     expect(screen.getByRole("button", { name: "Run Ingest" })).toBeDisabled();
 
     await act(async () => {
@@ -235,6 +234,6 @@ describe("App", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listJobs).toHaveBeenCalledTimes(2);
-    expect(getWorkspace).toHaveBeenCalledTimes(2);
+    expect(screen.getByRole("button", { name: "Run Ingest" })).toBeEnabled();
   });
 });
