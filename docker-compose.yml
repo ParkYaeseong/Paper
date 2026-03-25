@@ -31,6 +31,8 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+      KBF_LLM_USAGE_BASE_URL: ${KBF_LLM_USAGE_BASE_URL:-https://llm-usage.k-biofoundrycopilot.duckdns.org}
+      KBF_LLM_USAGE_SERVICE_SECRET: ${KBF_LLM_USAGE_SERVICE_SECRET:-}
       PAPER_APP_NAME: ${PAPER_APP_NAME:-Paper API}
       PAPER_APP_VERSION: ${PAPER_APP_VERSION:-0.1.0}
       PAPER_DATABASE_URL: ${PAPER_DATABASE_URL:-postgresql+psycopg://paper:paper@postgres:5432/paper}
@@ -47,12 +49,14 @@ services:
       PAPER_SESSION_COOKIE_NAME: ${PAPER_SESSION_COOKIE_NAME:-paper_session}
       PAPER_SESSION_COOKIE_SECURE: ${PAPER_SESSION_COOKIE_SECURE:-false}
       PAPER_SESSION_TTL_S: ${PAPER_SESSION_TTL_S:-86400}
+      PYTHONPATH: /app:/opt/kbf-llm-usage/sdk/python
     restart: unless-stopped
     command: >
       bash -lc "python -c 'from app.db import init_schema; init_schema()'
       && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./data:/app/data
+      - /opt/kbf-llm-usage/sdk/python:/opt/kbf-llm-usage/sdk/python:ro
     ports:
       - "127.0.0.1:18093:8000"
 
@@ -69,6 +73,8 @@ services:
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-5.4}
       GEMINI_API_KEY: ${GEMINI_API_KEY:-}
       GEMINI_MODEL: ${GEMINI_MODEL:-gemini-2.5-pro}
+      KBF_LLM_USAGE_BASE_URL: ${KBF_LLM_USAGE_BASE_URL:-https://llm-usage.k-biofoundrycopilot.duckdns.org}
+      KBF_LLM_USAGE_SERVICE_SECRET: ${KBF_LLM_USAGE_SERVICE_SECRET:-}
       PAPER_APP_NAME: ${PAPER_APP_NAME:-Paper API}
       PAPER_APP_VERSION: ${PAPER_APP_VERSION:-0.1.0}
       PAPER_DATABASE_URL: ${PAPER_DATABASE_URL:-postgresql+psycopg://paper:paper@postgres:5432/paper}
@@ -85,11 +91,13 @@ services:
       PAPER_SESSION_COOKIE_NAME: ${PAPER_SESSION_COOKIE_NAME:-paper_session}
       PAPER_SESSION_COOKIE_SECURE: ${PAPER_SESSION_COOKIE_SECURE:-false}
       PAPER_SESSION_TTL_S: ${PAPER_SESSION_TTL_S:-86400}
+      PYTHONPATH: /app:/opt/kbf-llm-usage/sdk/python
     restart: unless-stopped
     command: >
       bash -lc "python -m app.jobs"
     volumes:
       - ./data:/app/data
+      - /opt/kbf-llm-usage/sdk/python:/opt/kbf-llm-usage/sdk/python:ro
 
   frontend:
     build:
