@@ -68,6 +68,19 @@ export function createProject(input: { title: string; objective: string }) {
   });
 }
 
+export async function deleteProject(projectId: string) {
+  const response = await fetch(`/api/projects/${projectId}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+  if (response.status === 401) {
+    throw new Error("UNAUTHORIZED");
+  }
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
 export function uploadArtifacts(projectId: string, files: File[]) {
   const form = new FormData();
   files.forEach((file) => form.append("files", file));

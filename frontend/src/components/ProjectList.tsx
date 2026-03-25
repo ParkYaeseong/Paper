@@ -8,6 +8,7 @@ type ProjectListProps = {
   selectedProjectId: string | null;
   onSelectProject: (projectId: string) => void;
   onCreateProject: (input: { title: string; objective: string }) => Promise<void>;
+  onDeleteProject: (projectId: string) => Promise<void>;
 };
 
 
@@ -15,11 +16,14 @@ export default function ProjectList({
   projects,
   selectedProjectId,
   onSelectProject,
-  onCreateProject
+  onCreateProject,
+  onDeleteProject
 }: ProjectListProps) {
   const [title, setTitle] = useState("");
   const [objective, setObjective] = useState("");
   const [creating, setCreating] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const selectedProject = projects.find((project) => project.id === selectedProjectId) ?? null;
 
   async function handleCreate() {
     if (!title.trim()) return;
@@ -30,6 +34,19 @@ export default function ProjectList({
       setObjective("");
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function handleDeleteSelectedProject() {
+    if (!selectedProject) return;
+    if (!window.confirm(`Delete project "${selectedProject.title}"? This removes uploads, drafts, citations, and exports.`)) {
+      return;
+    }
+    setDeleting(true);
+    try {
+      await onDeleteProject(selectedProject.id);
+    } finally {
+      setDeleting(false);
     }
   }
 
@@ -67,9 +84,16 @@ export default function ProjectList({
           <span>Objective</span>
           <textarea value={objective} onChange={(event) => setObjective(event.target.value)} placeholder="Relate funding levels to throughput and yield." />
         </label>
-        <button className="primary-button" disabled={creating} onClick={handleCreate} type="button">
-          Create Project
-        </button>
+        <div className="button-row">
+          <button className="primary-button" disabled={creating || deleting} onClick={handleCreate} type="button">
+            Create Project
+          </button>
+          {selectedProject ? (
+            <button className="danger-button" disabled={creating || deleting} onClick={handleDeleteSelectedProject} type="button">
+              Delete Selected Project
+            </button>
+          ) : null}
+        </div>
       </div>
     </aside>
   );

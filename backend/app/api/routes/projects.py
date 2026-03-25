@@ -8,7 +8,7 @@ from app.db import get_db_session
 from app.deps import require_user
 from app.models import Artifact, Project
 from app.schemas.project import ArtifactListResponse, ArtifactRead, ProjectCreate, ProjectListResponse, ProjectRead
-from app.services.storage import delete_stored_file, save_upload_file
+from app.services.storage import delete_project_storage, delete_stored_file, save_upload_file
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -65,6 +65,20 @@ def get_project(
     session: Session = Depends(get_db_session),
 ) -> Project:
     return _get_project_or_403(session, project_id, user)
+
+
+@router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_project(
+    project_id: str,
+    request: Request,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_db_session),
+) -> Response:
+    project = _get_project_or_403(session, project_id, user)
+    delete_project_storage(request.app.state.settings, project.id)
+    session.delete(project)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.post("/{project_id}/artifacts", response_model=ArtifactListResponse, status_code=status.HTTP_201_CREATED)

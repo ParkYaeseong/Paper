@@ -6,6 +6,7 @@ import ProjectList from "./components/ProjectList";
 import ProjectWorkspace from "./components/ProjectWorkspace";
 import {
   createProject,
+  deleteProject,
   deleteArtifact,
   exchangeOidcCode,
   getAuthConfig,
@@ -147,6 +148,26 @@ export default function App() {
     await refreshWorkspace(target.id);
   }
 
+  async function handleDeleteProject(projectId: string) {
+    const deletingSelected = selectedProjectId === projectId;
+    await deleteProject(projectId);
+    const items = await refreshProjects();
+    if (!items.length) {
+      setSelectedProjectId(null);
+      setWorkspace(null);
+      return;
+    }
+    if (deletingSelected) {
+      const nextProjectId = items[0].id;
+      setSelectedProjectId(nextProjectId);
+      await refreshWorkspace(nextProjectId);
+      return;
+    }
+    if (selectedProjectId) {
+      await refreshWorkspace(selectedProjectId);
+    }
+  }
+
   async function handleUploadFiles(files: File[]) {
     if (!selectedProjectId) return;
     await uploadArtifacts(selectedProjectId, files);
@@ -194,6 +215,7 @@ export default function App() {
       <div className="content-shell">
         <ProjectList
           onCreateProject={handleCreateProject}
+          onDeleteProject={handleDeleteProject}
           onSelectProject={setSelectedProjectId}
           projects={projects}
           selectedProjectId={selectedProjectId}

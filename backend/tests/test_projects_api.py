@@ -98,6 +98,32 @@ def test_uploading_same_filename_twice_keeps_distinct_storage_paths(client, auth
     assert first_path != second_path
 
 
+def test_delete_project_removes_storage_and_records(client, auth_cookie: str) -> None:
+    client.cookies.set("paper_session", auth_cookie)
+    project = client.post("/api/projects", json={"title": "Project A", "objective": "A"}).json()
+
+    upload = client.post(
+        f"/api/projects/{project['id']}/artifacts",
+        files={"files": ("results.csv", BytesIO(b"col1,col2\n1,2\n"), "text/csv")},
+    )
+    artifact = upload.json()["items"][0]
+    project_root = Path(artifact["storage_path"]).parents[1]
+
+    assert project_root.exists()
+
+    response = client.delete(f"/api/projects/{project['id']}")
+
+    assert response.status_code == 204
+    assert not project_root.exists()
+
+    list_response = client.get("/api/projects")
+    assert list_response.status_code == 200
+    assert list_response.json()["items"] == []
+
+    project_response = client.get(f"/api/projects/{project['id']}")
+    assert project_response.status_code == 404
+
+
 def test_reject_access_to_other_users_project(client, auth_cookie: str, other_user_cookie: str) -> None:
     client.cookies.set("paper_session", auth_cookie)
     project = client.post("/api/projects", json={"title": "Private project", "objective": "secret"}).json()

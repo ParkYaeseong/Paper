@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import hashlib
 from pathlib import Path
+import shutil
 import uuid
 
 from fastapi import UploadFile
@@ -43,3 +44,7 @@ def delete_stored_file(storage_path: str) -> None:
             parent.rmdir()
         except OSError:
             pass
+
+
+def delete_project_storage(settings: Settings, project_id: str) -> None:
+    shutil.rmtree(_project_root(settings, project_id), ignore_errors=True)

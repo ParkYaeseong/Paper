@@ -5,6 +5,7 @@ import App from "./App";
 
 vi.mock("./lib/api", () => ({
   createProject: vi.fn(),
+  deleteProject: vi.fn(),
   deleteArtifact: vi.fn(),
   exchangeOidcCode: vi.fn(),
   getAuthConfig: vi.fn(),
@@ -19,7 +20,7 @@ vi.mock("./lib/api", () => ({
   uploadArtifacts: vi.fn(),
 }));
 
-import { getAuthConfig, getCurrentUser, getWorkspace, listJobs, listProjects, runPipelineStage } from "./lib/api";
+import { deleteProject, getAuthConfig, getCurrentUser, getWorkspace, listJobs, listProjects, runPipelineStage } from "./lib/api";
 
 
 function buildWorkspace(overrides: Record<string, unknown> = {}) {
@@ -237,5 +238,56 @@ describe("App", () => {
     });
     expect(listJobs).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Run Ingest" })).toBeEnabled();
+  });
+
+  it("deletes the selected project and clears the workspace when no projects remain", async () => {
+    vi.mocked(getAuthConfig).mockResolvedValue({
+      ok: true,
+      enabled: true,
+      issuer: "https://sso.example.com/realms/kbf",
+      client_id: "paper",
+      scopes: "openid profile email",
+      provider_name: "KBF SSO",
+      authorization_endpoint: "https://sso.example.com/auth",
+      end_session_endpoint: "https://sso.example.com/logout",
+      account_url: "https://sso.example.com/account",
+    });
+    vi.mocked(getCurrentUser).mockResolvedValue({
+      sub: "user-1",
+      username: "tester",
+      email: "tester@example.com",
+      name: "Test User",
+      role: "user",
+    });
+    vi.mocked(listProjects)
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "project-1",
+            title: "Funding analysis manuscript",
+            objective: "Analyze funding and performance outcomes.",
+            status: "draft",
+            owner_sub: "user-1",
+            owner_username: "tester",
+            created_at: "2026-03-24T00:00:00Z",
+            updated_at: "2026-03-24T00:00:00Z",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({ items: [] });
+    vi.mocked(getWorkspace).mockResolvedValue(buildWorkspace());
+    vi.mocked(deleteProject).mockResolvedValue(undefined);
+    vi.spyOn(window, "confirm").mockReturnValue(true);
+
+    render(<App />);
+
+    await screen.findByRole("heading", { level: 2, name: "Funding analysis manuscript" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Delete Selected Project" }));
+    });
+
+    expect(deleteProject).toHaveBeenCalledWith("project-1");
+    expect(await screen.findByText("Select or create a project")).toBeInTheDocument();
   });
 });
