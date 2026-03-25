@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 
+import GuideModal from "./components/GuideModal";
 import Header from "./components/Header";
 import LoginGate from "./components/LoginGate";
 import ProjectList from "./components/ProjectList";
@@ -21,6 +22,7 @@ import {
   uploadArtifacts
 } from "./lib/api";
 import { buildOidcAuthorizationUrl, buildOidcRedirectUri, parseOidcCallback, stripOidcCallbackParams } from "./lib/auth";
+import type { GuideLanguage } from "./lib/guide-content";
 import type { AuthConfig, JobRun, Project, User, Workspace } from "./lib/types";
 
 
@@ -31,6 +33,13 @@ function isActiveJob(job: JobRun) {
 
 export default function App() {
   const [authConfig, setAuthConfig] = useState<AuthConfig | null>(null);
+  const [guideLanguage, setGuideLanguage] = useState<GuideLanguage>(() => {
+    if (typeof navigator !== "undefined" && navigator.language.toLowerCase().startsWith("ko")) {
+      return "ko";
+    }
+    return "en";
+  });
+  const [guideOpen, setGuideOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(null);
@@ -211,7 +220,13 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <Header onLogout={handleLogout} user={user} />
+      <Header onLogout={handleLogout} onOpenGuide={() => setGuideOpen(true)} user={user} />
+      <GuideModal
+        language={guideLanguage}
+        onClose={() => setGuideOpen(false)}
+        onLanguageChange={setGuideLanguage}
+        open={guideOpen}
+      />
       <div className="content-shell">
         <ProjectList
           onCreateProject={handleCreateProject}

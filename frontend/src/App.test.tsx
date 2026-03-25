@@ -1,4 +1,4 @@
-import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
@@ -289,5 +289,69 @@ describe("App", () => {
 
     expect(deleteProject).toHaveBeenCalledWith("project-1");
     expect(await screen.findByText("Select or create a project")).toBeInTheDocument();
+  });
+
+  it("opens the bilingual help guide, switches language, and closes it", async () => {
+    vi.mocked(getAuthConfig).mockResolvedValue({
+      ok: true,
+      enabled: true,
+      issuer: "https://sso.example.com/realms/kbf",
+      client_id: "paper",
+      scopes: "openid profile email",
+      provider_name: "KBF SSO",
+      authorization_endpoint: "https://sso.example.com/auth",
+      end_session_endpoint: "https://sso.example.com/logout",
+      account_url: "https://sso.example.com/account",
+    });
+    vi.mocked(getCurrentUser).mockResolvedValue({
+      sub: "user-1",
+      username: "tester",
+      email: "tester@example.com",
+      name: "Test User",
+      role: "user",
+    });
+    vi.mocked(listProjects).mockResolvedValue({
+      items: [
+        {
+          id: "project-1",
+          title: "Funding analysis manuscript",
+          objective: "Analyze funding and performance outcomes.",
+          status: "draft",
+          owner_sub: "user-1",
+          owner_username: "tester",
+          created_at: "2026-03-24T00:00:00Z",
+          updated_at: "2026-03-24T00:00:00Z",
+        },
+      ],
+    });
+    vi.mocked(getWorkspace).mockResolvedValue(buildWorkspace());
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "Help / 사용법" });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Help / 사용법" }));
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Usage Guide" });
+    expect(dialog).toBeInTheDocument();
+    expect(within(dialog).getByText("Quick Start")).toBeInTheDocument();
+    expect(within(dialog).getByText("Upload Selected Files")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("tab", { name: "한국어" }));
+    });
+
+    const koreanDialog = screen.getByRole("dialog", { name: "사용 가이드" });
+    expect(koreanDialog).toBeInTheDocument();
+    expect(within(koreanDialog).getByText("빠른 시작")).toBeInTheDocument();
+    expect(within(koreanDialog).getByText("업로드한 파일이 바뀌면 Run Ingest를 다시 실행하세요.")).toBeInTheDocument();
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Close guide" }));
+    });
+
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 });
