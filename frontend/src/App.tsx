@@ -10,6 +10,7 @@ import {
   getAuthConfig,
   getCurrentUser,
   getWorkspace,
+  listJobs,
   listProjects,
   logout,
   runPipelineStage,
@@ -18,7 +19,12 @@ import {
   uploadArtifacts
 } from "./lib/api";
 import { buildOidcAuthorizationUrl, buildOidcRedirectUri, parseOidcCallback, stripOidcCallbackParams } from "./lib/auth";
-import type { AuthConfig, Project, User, Workspace } from "./lib/types";
+import type { AuthConfig, JobRun, Project, User, Workspace } from "./lib/types";
+
+
+function isActiveJob(job: JobRun) {
+  return job.status === "queued" || job.status === "running";
+}
 
 
 export default function App() {
@@ -85,6 +91,27 @@ export default function App() {
     if (!selectedProjectId || !user) return;
     void refreshWorkspace(selectedProjectId);
   }, [selectedProjectId, user]);
+
+  useEffect(() => {
+    if (!selectedProjectId || !user || !workspace) return;
+    if (!workspace.jobs.some(isActiveJob)) return;
+
+    const timer = window.setTimeout(async () => {
+      try {
+        const response = await listJobs(selectedProjectId);
+        setWorkspace((current) => (current ? { ...current, jobs: response.items } : current));
+        if (!response.items.some(isActiveJob)) {
+          await refreshWorkspace(selectedProjectId);
+        }
+      } catch (caughtError) {
+        setError(caughtError instanceof Error ? caughtError.message : "Failed to poll jobs.");
+      }
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+  }, [selectedProjectId, user, workspace]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,

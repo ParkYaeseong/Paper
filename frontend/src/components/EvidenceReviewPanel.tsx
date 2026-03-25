@@ -1,9 +1,10 @@
-import type { CitationSlot, EvidenceMatch, ReferenceRecord } from "../lib/types";
+import type { CitationSlot, EvidenceMatch, JobRun, ReferenceRecord } from "../lib/types";
 
 
 type EvidenceReviewPanelProps = {
   citationSlots: CitationSlot[];
   evidenceMatches: EvidenceMatch[];
+  jobs: JobRun[];
   references: ReferenceRecord[];
   onRunStage: (stage: string) => Promise<void>;
   onReviewSlot: (slotId: string, status: string, selectedReferenceIds?: string[]) => Promise<void>;
@@ -20,12 +21,15 @@ function scoreLabel(score: number) {
 export default function EvidenceReviewPanel({
   citationSlots,
   evidenceMatches,
+  jobs,
   references,
   onRunStage,
   onReviewSlot
 }: EvidenceReviewPanelProps) {
   const refById = Object.fromEntries(references.map((reference) => [reference.id, reference]));
   const matchBySlotId = Object.fromEntries(evidenceMatches.map((match) => [match.citation_slot_id, match]));
+  const retrieveBusy = jobs.some((job) => job.stage === "retrieve" && (job.status === "queued" || job.status === "running"));
+  const groundBusy = jobs.some((job) => job.stage === "ground" && (job.status === "queued" || job.status === "running"));
 
   return (
     <section className="panel">
@@ -35,10 +39,10 @@ export default function EvidenceReviewPanel({
           <h3>Evidence Review</h3>
         </div>
         <div className="button-row">
-          <button className="secondary-button" onClick={() => onRunStage("retrieve")} type="button">
+          <button className="secondary-button" disabled={retrieveBusy} onClick={() => onRunStage("retrieve")} type="button">
             Run Retrieve
           </button>
-          <button className="secondary-button" onClick={() => onRunStage("ground")} type="button">
+          <button className="secondary-button" disabled={groundBusy} onClick={() => onRunStage("ground")} type="button">
             Run Ground
           </button>
         </div>

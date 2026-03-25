@@ -1,13 +1,15 @@
-import type { Outline } from "../lib/types";
+import type { JobRun, Outline } from "../lib/types";
 
 
 type OutlinePanelProps = {
   outline: Outline;
+  jobs: JobRun[];
   onRunStage: (stage: string) => Promise<void>;
 };
 
 
-export default function OutlinePanel({ outline, onRunStage }: OutlinePanelProps) {
+export default function OutlinePanel({ outline, jobs, onRunStage }: OutlinePanelProps) {
+  const planBusy = jobs.some((job) => job.stage === "plan" && (job.status === "queued" || job.status === "running"));
   return (
     <section className="panel">
       <div className="panel-header">
@@ -15,7 +17,7 @@ export default function OutlinePanel({ outline, onRunStage }: OutlinePanelProps)
           <p className="eyebrow">Planning</p>
           <h3>Outline</h3>
         </div>
-        <button className="secondary-button" onClick={() => onRunStage("plan")} type="button">
+        <button className="secondary-button" disabled={planBusy} onClick={() => onRunStage("plan")} type="button">
           Run Plan
         </button>
       </div>

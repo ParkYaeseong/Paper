@@ -1,21 +1,23 @@
 import { useState } from "react";
 
-import type { DatasetProfile, Project } from "../lib/types";
+import type { DatasetProfile, JobRun, Project } from "../lib/types";
 
 
 type UploadPanelProps = {
   project: Project;
   datasetProfile: DatasetProfile;
+  jobs: JobRun[];
   onUploadFiles: (files: File[]) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
 };
 
 
-export default function UploadPanel({ project, datasetProfile, onUploadFiles, onRunStage }: UploadPanelProps) {
+export default function UploadPanel({ project, datasetProfile, jobs, onUploadFiles, onRunStage }: UploadPanelProps) {
   const [files, setFiles] = useState<File[]>([]);
   const summary = datasetProfile?.summary_json?.dataset_summary as
     | { artifact_count?: number; table_count?: number }
     | undefined;
+  const ingestBusy = jobs.some((job) => job.stage === "ingest" && (job.status === "queued" || job.status === "running"));
 
   async function handleUpload() {
     if (!files.length) return;
@@ -30,7 +32,7 @@ export default function UploadPanel({ project, datasetProfile, onUploadFiles, on
           <p className="eyebrow">Project Intake</p>
           <h3>Upload</h3>
         </div>
-        <button className="secondary-button" onClick={() => onRunStage("ingest")} type="button">
+        <button className="secondary-button" disabled={ingestBusy} onClick={() => onRunStage("ingest")} type="button">
           Run Ingest
         </button>
       </div>

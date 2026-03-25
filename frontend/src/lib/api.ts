@@ -1,5 +1,6 @@
 import type {
   AuthConfig,
+  JobListResponse,
   ProjectListResponse,
   User,
   Workspace
@@ -78,6 +79,10 @@ export function uploadArtifacts(projectId: string, files: File[]) {
 
 export function getWorkspace(projectId: string): Promise<Workspace> {
   return apiFetch<Workspace>(`/api/projects/${projectId}/workspace`);
+}
+
+export function listJobs(projectId: string): Promise<JobListResponse> {
+  return apiFetch<JobListResponse>(`/api/projects/${projectId}/jobs`);
 }
 
 export function runPipelineStage(projectId: string, stage: string) {

@@ -9,6 +9,9 @@ type ExportPanelProps = {
 
 
 export default function ExportPanel({ exportBundle, jobs, onRunStage }: ExportPanelProps) {
+  const exportBusy = jobs.some((job) => job.stage === "export" && (job.status === "queued" || job.status === "running"));
+  const failedJob = [...jobs].reverse().find((job) => job.status === "failed") ?? null;
+
   return (
     <section className="panel">
       <div className="panel-header">
@@ -16,7 +19,7 @@ export default function ExportPanel({ exportBundle, jobs, onRunStage }: ExportPa
           <p className="eyebrow">Output</p>
           <h3>Export</h3>
         </div>
-        <button className="primary-button" onClick={() => onRunStage("export")} type="button">
+        <button className="primary-button" disabled={exportBusy} onClick={() => onRunStage("export")} type="button">
           Run Export
         </button>
       </div>
@@ -32,6 +35,7 @@ export default function ExportPanel({ exportBundle, jobs, onRunStage }: ExportPa
       ) : (
         <p className="muted-copy">No export bundle yet. Run export after grounding and review.</p>
       )}
+      {failedJob?.log_text ? <p className="error-text">{failedJob.log_text}</p> : null}
       <div className="job-strip">
         {jobs.slice(-6).map((job) => (
           <div className="job-chip" key={job.id}>

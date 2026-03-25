@@ -1,21 +1,58 @@
-import { render, screen, waitFor } from "@testing-library/react";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "./App";
 
 vi.mock("./lib/api", () => ({
+  createProject: vi.fn(),
+  exchangeOidcCode: vi.fn(),
   getAuthConfig: vi.fn(),
   getCurrentUser: vi.fn(),
-  listProjects: vi.fn(),
   getWorkspace: vi.fn(),
+  listJobs: vi.fn(),
+  listProjects: vi.fn(),
+  logout: vi.fn(),
+  runPipelineStage: vi.fn(),
+  updateCitationSlot: vi.fn(),
+  updateDraftSection: vi.fn(),
+  uploadArtifacts: vi.fn(),
 }));
 
-import { getAuthConfig, getCurrentUser, getWorkspace, listProjects } from "./lib/api";
+import { getAuthConfig, getCurrentUser, getWorkspace, listJobs, listProjects, runPipelineStage } from "./lib/api";
+
+
+function buildWorkspace(overrides: Record<string, unknown> = {}) {
+  return {
+    project: {
+      id: "project-1",
+      title: "Funding analysis manuscript",
+      objective: "Analyze funding and performance outcomes.",
+      status: "draft",
+      owner_sub: "user-1",
+      owner_username: "tester",
+      created_at: "2026-03-24T00:00:00Z",
+      updated_at: "2026-03-24T00:00:00Z",
+    },
+    dataset_profile: null,
+    outline: null,
+    draft_sections: [],
+    citation_slots: [],
+    reference_records: [],
+    evidence_matches: [],
+    export_bundle: null,
+    jobs: [],
+    ...overrides,
+  };
+}
 
 
 describe("App", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
   });
 
   it("shows a login gate when there is no authenticated user", async () => {
@@ -71,26 +108,7 @@ describe("App", () => {
         },
       ],
     });
-    vi.mocked(getWorkspace).mockResolvedValue({
-      project: {
-        id: "project-1",
-        title: "Funding analysis manuscript",
-        objective: "Analyze funding and performance outcomes.",
-        status: "draft",
-        owner_sub: "user-1",
-        owner_username: "tester",
-        created_at: "2026-03-24T00:00:00Z",
-        updated_at: "2026-03-24T00:00:00Z",
-      },
-      dataset_profile: null,
-      outline: null,
-      draft_sections: [],
-      citation_slots: [],
-      reference_records: [],
-      evidence_matches: [],
-      export_bundle: null,
-      jobs: [],
-    });
+    vi.mocked(getWorkspace).mockResolvedValue(buildWorkspace());
 
     render(<App />);
 
@@ -99,5 +117,124 @@ describe("App", () => {
     });
     expect(screen.getByRole("heading", { level: 2, name: "Create Project" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Workspace" })).toBeInTheDocument();
+  });
+
+  it("polls active jobs and refreshes workspace after completion", async () => {
+    vi.mocked(getAuthConfig).mockResolvedValue({
+      ok: true,
+      enabled: true,
+      issuer: "https://sso.example.com/realms/kbf",
+      client_id: "paper",
+      scopes: "openid profile email",
+      provider_name: "KBF SSO",
+      authorization_endpoint: "https://sso.example.com/auth",
+      end_session_endpoint: "https://sso.example.com/logout",
+      account_url: "https://sso.example.com/account",
+    });
+    vi.mocked(getCurrentUser).mockResolvedValue({
+      sub: "user-1",
+      username: "tester",
+      email: "tester@example.com",
+      name: "Test User",
+      role: "user",
+    });
+    vi.mocked(listProjects).mockResolvedValue({
+      items: [
+        {
+          id: "project-1",
+          title: "Funding analysis manuscript",
+          objective: "Analyze funding and performance outcomes.",
+          status: "draft",
+          owner_sub: "user-1",
+          owner_username: "tester",
+          created_at: "2026-03-24T00:00:00Z",
+          updated_at: "2026-03-24T00:00:00Z",
+        },
+      ],
+    });
+    vi.mocked(getWorkspace).mockResolvedValue(buildWorkspace());
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "Run Ingest" });
+    vi.useFakeTimers();
+
+    vi.mocked(getWorkspace).mockReset();
+    vi.mocked(getWorkspace)
+      .mockResolvedValueOnce(
+        buildWorkspace({
+          jobs: [
+            {
+              id: "job-1",
+              stage: "ingest",
+              status: "queued",
+              payload_json: null,
+              result_json: null,
+              log_text: "",
+              started_at: null,
+              finished_at: null,
+              created_at: "2026-03-25T00:00:00Z",
+              updated_at: "2026-03-25T00:00:00Z",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(buildWorkspace());
+    vi.mocked(runPipelineStage).mockResolvedValue({
+      ok: true,
+      job: { id: "job-1", stage: "ingest", status: "queued" },
+    });
+    vi.mocked(listJobs)
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "job-1",
+            stage: "ingest",
+            status: "running",
+            payload_json: null,
+            result_json: null,
+            log_text: "",
+            started_at: "2026-03-25T00:00:01Z",
+            finished_at: null,
+            created_at: "2026-03-25T00:00:00Z",
+            updated_at: "2026-03-25T00:00:01Z",
+          },
+        ],
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            id: "job-1",
+            stage: "ingest",
+            status: "succeeded",
+            payload_json: null,
+            result_json: { type: "DatasetProfile" },
+            log_text: "",
+            started_at: "2026-03-25T00:00:01Z",
+            finished_at: "2026-03-25T00:00:03Z",
+            created_at: "2026-03-25T00:00:00Z",
+            updated_at: "2026-03-25T00:00:03Z",
+          },
+        ],
+      });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Run Ingest" }));
+    });
+
+    expect(runPipelineStage).toHaveBeenCalledWith("project-1", "ingest");
+    expect(getWorkspace).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Run Ingest" })).toBeDisabled();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(listJobs).toHaveBeenCalledTimes(1);
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+    expect(listJobs).toHaveBeenCalledTimes(2);
+    expect(getWorkspace).toHaveBeenCalledTimes(2);
   });
 });

@@ -33,6 +33,10 @@ export type ProjectListResponse = {
   items: Project[];
 };
 
+export type JobListResponse = {
+  items: JobRun[];
+};
+
 export type DatasetProfile = {
   id: string;
   version: number;

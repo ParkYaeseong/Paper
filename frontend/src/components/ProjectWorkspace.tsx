@@ -35,19 +35,22 @@ export default function ProjectWorkspace({
       <div className="workspace-grid">
         <UploadPanel
           datasetProfile={workspace.dataset_profile}
+          jobs={workspace.jobs}
           onRunStage={onRunStage}
           onUploadFiles={onUploadFiles}
           project={workspace.project}
         />
-        <OutlinePanel outline={workspace.outline} onRunStage={onRunStage} />
+        <OutlinePanel jobs={workspace.jobs} outline={workspace.outline} onRunStage={onRunStage} />
         <DraftPanel
           draftSections={workspace.draft_sections}
+          jobs={workspace.jobs}
           onRunStage={onRunStage}
           onSaveSection={onSaveSection}
         />
         <EvidenceReviewPanel
           citationSlots={workspace.citation_slots}
           evidenceMatches={workspace.evidence_matches}
+          jobs={workspace.jobs}
           onReviewSlot={onReviewSlot}
           onRunStage={onRunStage}
           references={workspace.reference_records}

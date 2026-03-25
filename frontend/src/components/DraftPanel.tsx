@@ -1,17 +1,19 @@
 import { useState } from "react";
 
-import type { DraftSection } from "../lib/types";
+import type { DraftSection, JobRun } from "../lib/types";
 
 
 type DraftPanelProps = {
   draftSections: DraftSection[];
+  jobs: JobRun[];
   onRunStage: (stage: string) => Promise<void>;
   onSaveSection: (sectionId: string, content: string) => Promise<void>;
 };
 
 
-export default function DraftPanel({ draftSections, onRunStage, onSaveSection }: DraftPanelProps) {
+export default function DraftPanel({ draftSections, jobs, onRunStage, onSaveSection }: DraftPanelProps) {
   const [localEdits, setLocalEdits] = useState<Record<string, string>>({});
+  const draftBusy = jobs.some((job) => job.stage === "draft" && (job.status === "queued" || job.status === "running"));
 
   return (
     <section className="panel">
@@ -20,7 +22,7 @@ export default function DraftPanel({ draftSections, onRunStage, onSaveSection }:
           <p className="eyebrow">Drafting</p>
           <h3>Workspace</h3>
         </div>
-        <button className="secondary-button" onClick={() => onRunStage("draft")} type="button">
+        <button className="secondary-button" disabled={draftBusy} onClick={() => onRunStage("draft")} type="button">
           Run Draft
         </button>
       </div>
