@@ -20,7 +20,8 @@ async def save_upload_file(settings: Settings, project_id: str, upload: UploadFi
     raw = await upload.read()
     filename = upload.filename or f"upload-{uuid.uuid4()}"
     safe_name = Path(filename).name
-    target = project_root / safe_name
+    target = project_root / str(uuid.uuid4()) / safe_name
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(raw)
 
     return {
@@ -30,3 +31,15 @@ async def save_upload_file(settings: Settings, project_id: str, upload: UploadFi
         "sha256": hashlib.sha256(raw).hexdigest(),
         "content_type": upload.content_type or "application/octet-stream",
     }
+
+
+def delete_stored_file(storage_path: str) -> None:
+    path = Path(storage_path)
+    if path.exists() and path.is_file():
+        path.unlink()
+    parent = path.parent
+    if parent.exists() and parent.is_dir():
+        try:
+            parent.rmdir()
+        except OSError:
+            pass

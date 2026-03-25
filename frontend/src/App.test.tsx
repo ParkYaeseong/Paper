@@ -5,6 +5,7 @@ import App from "./App";
 
 vi.mock("./lib/api", () => ({
   createProject: vi.fn(),
+  deleteArtifact: vi.fn(),
   exchangeOidcCode: vi.fn(),
   getAuthConfig: vi.fn(),
   getCurrentUser: vi.fn(),

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 
 def test_create_project(client, auth_cookie: str) -> None:
@@ -52,6 +53,49 @@ def test_upload_artifact_to_owned_project(client, auth_cookie: str) -> None:
     body = workspace.json()
     assert len(body["artifacts"]) == 1
     assert body["artifacts"][0]["filename"] == "results.csv"
+
+
+def test_delete_artifact_removes_file_and_workspace_entry(client, auth_cookie: str) -> None:
+    client.cookies.set("paper_session", auth_cookie)
+    project = client.post("/api/projects", json={"title": "Project A", "objective": "A"}).json()
+
+    upload = client.post(
+        f"/api/projects/{project['id']}/artifacts",
+        files={"files": ("results.csv", BytesIO(b"col1,col2\n1,2\n"), "text/csv")},
+    )
+    artifact = upload.json()["items"][0]
+
+    stored_path = Path(artifact["storage_path"])
+    assert stored_path.exists()
+
+    response = client.delete(f"/api/projects/{project['id']}/artifacts/{artifact['id']}")
+
+    assert response.status_code == 204
+    assert not stored_path.exists()
+
+    workspace = client.get(f"/api/projects/{project['id']}/workspace")
+
+    assert workspace.status_code == 200
+    assert workspace.json()["artifacts"] == []
+
+
+def test_uploading_same_filename_twice_keeps_distinct_storage_paths(client, auth_cookie: str) -> None:
+    client.cookies.set("paper_session", auth_cookie)
+    project = client.post("/api/projects", json={"title": "Project A", "objective": "A"}).json()
+
+    first = client.post(
+        f"/api/projects/{project['id']}/artifacts",
+        files={"files": ("results.csv", BytesIO(b"col1,col2\n1,2\n"), "text/csv")},
+    )
+    second = client.post(
+        f"/api/projects/{project['id']}/artifacts",
+        files={"files": ("results.csv", BytesIO(b"col1,col2\n3,4\n"), "text/csv")},
+    )
+
+    first_path = first.json()["items"][0]["storage_path"]
+    second_path = second.json()["items"][0]["storage_path"]
+
+    assert first_path != second_path
 
 
 def test_reject_access_to_other_users_project(client, auth_cookie: str, other_user_cookie: str) -> None:

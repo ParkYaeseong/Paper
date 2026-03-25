@@ -8,6 +8,7 @@ import UploadPanel from "./UploadPanel";
 
 
 type ProjectWorkspaceProps = {
+  onDeleteArtifact: (artifactId: string) => Promise<void>;
   workspace: Workspace;
   onUploadFiles: (files: File[]) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
@@ -17,6 +18,7 @@ type ProjectWorkspaceProps = {
 
 
 export default function ProjectWorkspace({
+  onDeleteArtifact,
   workspace,
   onUploadFiles,
   onRunStage,
@@ -37,6 +39,7 @@ export default function ProjectWorkspace({
           artifacts={workspace.artifacts}
           datasetProfile={workspace.dataset_profile}
           jobs={workspace.jobs}
+          onDeleteArtifact={onDeleteArtifact}
           onRunStage={onRunStage}
           onUploadFiles={onUploadFiles}
           project={workspace.project}

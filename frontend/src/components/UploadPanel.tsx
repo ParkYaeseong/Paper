@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import type { Artifact, DatasetProfile, JobRun, Project } from "../lib/types";
 
@@ -8,26 +8,56 @@ type UploadPanelProps = {
   project: Project;
   datasetProfile: DatasetProfile;
   jobs: JobRun[];
+  onDeleteArtifact: (artifactId: string) => Promise<void>;
   onUploadFiles: (files: File[]) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
 };
 
 
-export default function UploadPanel({ artifacts, project, datasetProfile, jobs, onUploadFiles, onRunStage }: UploadPanelProps) {
+export default function UploadPanel({
+  artifacts,
+  project,
+  datasetProfile,
+  jobs,
+  onDeleteArtifact,
+  onUploadFiles,
+  onRunStage,
+}: UploadPanelProps) {
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [files, setFiles] = useState<File[]>([]);
+  const [deletingArtifactId, setDeletingArtifactId] = useState<string | null>(null);
   const summary = datasetProfile?.summary_json?.dataset_summary as
     | { artifact_count?: number; table_count?: number }
     | undefined;
   const artifactCount = artifacts.length;
   const inferredTableCount = artifacts.filter((artifact) => artifact.filename.toLowerCase().endsWith(".csv")).length;
-  const tableCount = summary?.table_count ?? inferredTableCount;
-  const recentArtifacts = artifacts.slice(0, 5);
+  const ingestOutOfDate = Boolean(
+    datasetProfile
+      && (
+        summary?.artifact_count !== artifactCount
+        || summary?.table_count !== inferredTableCount
+      ),
+  );
+  const tableCount = ingestOutOfDate ? inferredTableCount : (summary?.table_count ?? inferredTableCount);
+  const visibleArtifacts = artifacts;
   const ingestBusy = jobs.some((job) => job.stage === "ingest" && (job.status === "queued" || job.status === "running"));
 
   async function handleUpload() {
     if (!files.length) return;
     await onUploadFiles(files);
     setFiles([]);
+    if (fileInputRef.current) {
+      fileInputRef.current.value = "";
+    }
+  }
+
+  async function handleDeleteArtifact(artifactId: string) {
+    setDeletingArtifactId(artifactId);
+    try {
+      await onDeleteArtifact(artifactId);
+    } finally {
+      setDeletingArtifactId(null);
+    }
   }
 
   return (
@@ -43,6 +73,7 @@ export default function UploadPanel({ artifacts, project, datasetProfile, jobs, 
       </div>
       <p className="panel-copy">{project.objective || "Add an objective to anchor the planning stage."}</p>
       <input
+        ref={fileInputRef}
         multiple
         onChange={(event) => setFiles(Array.from(event.target.files || []))}
         type="file"
@@ -52,6 +83,9 @@ export default function UploadPanel({ artifacts, project, datasetProfile, jobs, 
       </button>
       {!datasetProfile && artifactCount > 0 ? (
         <p className="muted-copy">Files uploaded. Run Ingest to summarize tables and notes into the project profile.</p>
+      ) : null}
+      {datasetProfile && ingestOutOfDate ? (
+        <p className="muted-copy">Uploaded files changed since the last ingest. Run Ingest again to refresh the project profile.</p>
       ) : null}
       <div className="stats-grid">
         <div className="stat-card">
@@ -63,11 +97,20 @@ export default function UploadPanel({ artifacts, project, datasetProfile, jobs, 
           <strong>{tableCount}</strong>
         </div>
       </div>
-      {recentArtifacts.length ? (
+      {visibleArtifacts.length ? (
         <div className="artifact-list">
-          {recentArtifacts.map((artifact) => (
-            <div className="artifact-chip" key={artifact.id}>
-              {artifact.filename}
+          {visibleArtifacts.map((artifact) => (
+            <div className="artifact-chip artifact-row" key={artifact.id}>
+              <span>{artifact.filename}</span>
+              <button
+                aria-label={`Delete ${artifact.filename}`}
+                className="ghost-button artifact-delete-button"
+                disabled={deletingArtifactId === artifact.id}
+                onClick={() => handleDeleteArtifact(artifact.id)}
+                type="button"
+              >
+                Delete
+              </button>
             </div>
           ))}
         </div>

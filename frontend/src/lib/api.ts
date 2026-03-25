@@ -77,6 +77,19 @@ export function uploadArtifacts(projectId: string, files: File[]) {
   });
 }
 
+export async function deleteArtifact(projectId: string, artifactId: string) {
+  const response = await fetch(`/api/projects/${projectId}/artifacts/${artifactId}`, {
+    method: "DELETE",
+    credentials: "include"
+  });
+  if (response.status === 401) {
+    throw new Error("UNAUTHORIZED");
+  }
+  if (!response.ok) {
+    throw new Error(await response.text());
+  }
+}
+
 export function getWorkspace(projectId: string): Promise<Workspace> {
   return apiFetch<Workspace>(`/api/projects/${projectId}/workspace`);
 }

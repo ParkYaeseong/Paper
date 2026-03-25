@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, File, HTTPException, Request, UploadFile, status
+from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -8,7 +8,7 @@ from app.db import get_db_session
 from app.deps import require_user
 from app.models import Artifact, Project
 from app.schemas.project import ArtifactListResponse, ArtifactRead, ProjectCreate, ProjectListResponse, ProjectRead
-from app.services.storage import save_upload_file
+from app.services.storage import delete_stored_file, save_upload_file
 
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -96,3 +96,21 @@ async def upload_artifacts(
     for item in stored_items:
         session.refresh(item)
     return ArtifactListResponse(items=[ArtifactRead.model_validate(item) for item in stored_items])
+
+
+@router.delete("/{project_id}/artifacts/{artifact_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_artifact(
+    project_id: str,
+    artifact_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_db_session),
+) -> Response:
+    project = _get_project_or_403(session, project_id, user)
+    artifact = session.scalar(select(Artifact).where(Artifact.project_id == project.id, Artifact.id == artifact_id))
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+
+    delete_stored_file(artifact.storage_path)
+    session.delete(artifact)
+    session.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

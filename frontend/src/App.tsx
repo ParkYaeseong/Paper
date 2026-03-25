@@ -6,6 +6,7 @@ import ProjectList from "./components/ProjectList";
 import ProjectWorkspace from "./components/ProjectWorkspace";
 import {
   createProject,
+  deleteArtifact,
   exchangeOidcCode,
   getAuthConfig,
   getCurrentUser,
@@ -152,6 +153,12 @@ export default function App() {
     await refreshWorkspace(selectedProjectId);
   }
 
+  async function handleDeleteArtifact(artifactId: string) {
+    if (!selectedProjectId) return;
+    await deleteArtifact(selectedProjectId, artifactId);
+    await refreshWorkspace(selectedProjectId);
+  }
+
   async function handleRunStage(stage: string) {
     if (!selectedProjectId) return;
     await runPipelineStage(selectedProjectId, stage);
@@ -193,6 +200,7 @@ export default function App() {
         />
         {selectedProject && workspace ? (
           <ProjectWorkspace
+            onDeleteArtifact={handleDeleteArtifact}
             onReviewSlot={handleReviewSlot}
             onRunStage={handleRunStage}
             onSaveSection={handleSaveSection}
