@@ -14,7 +14,9 @@ from app.config import Settings
 from app.models import CitationSlot, DraftSection, EvidenceMatch, ExportBundle, Outline, Project, ReferenceRecord
 
 
-PLACEHOLDER_RE = re.compile(r"\[(CIT_[A-Z0-9_]+)\]")
+CITATION_GROUP_RE = re.compile(r"\[([^\]]*CIT_[A-Z0-9_][^\]]*)\]")
+CITATION_TOKEN_RE = re.compile(r"\b(CIT_[A-Z0-9_]+)\b")
+FIGURE_PLACEHOLDER_RE = re.compile(r"\[FIGURE[_ ](\d+):\s*([^\]]+?)\]")
 
 
 def _latest_sections(session: Session, project_id: str) -> list[DraftSection]:
@@ -31,6 +33,17 @@ def _latest_outline(session: Session, project_id: str) -> Outline | None:
     return session.scalars(select(Outline).where(Outline.project_id == project_id).order_by(Outline.version.desc())).first()
 
 
+def _extract_slot_keys(content: str) -> list[str]:
+    keys: list[str] = []
+    seen: set[str] = set()
+    for slot_key in CITATION_TOKEN_RE.findall(content):
+        if slot_key in seen:
+            continue
+        seen.add(slot_key)
+        keys.append(slot_key)
+    return keys
+
+
 def _citation_numbering(session: Session, project_id: str) -> tuple[dict[str, int], dict[int, ReferenceRecord]]:
     slots = {
         slot.slot_key: slot
@@ -43,7 +56,7 @@ def _citation_numbering(session: Session, project_id: str) -> tuple[dict[str, in
     sections = _latest_sections(session, project_id)
     ordered_refs: OrderedDict[str, ReferenceRecord] = OrderedDict()
     for section in sections:
-        for slot_key in PLACEHOLDER_RE.findall(section.content):
+        for slot_key in _extract_slot_keys(section.content):
             slot = slots.get(slot_key)
             if slot is None:
                 continue
@@ -66,15 +79,56 @@ def _citation_numbering(session: Session, project_id: str) -> tuple[dict[str, in
     return slot_numbers, numbered_refs
 
 
-def _render_content(content: str, slot_numbers: dict[str, int]) -> str:
-    def _replace(match: re.Match[str]) -> str:
-        slot_key = match.group(1)
-        number = slot_numbers.get(slot_key)
-        if number is None:
-            return "[manual review]"
-        return f"[{number}]"
+def _strip_duplicate_heading(content: str, heading: str) -> str:
+    lines = content.splitlines()
+    if not lines:
+        return content.strip()
+    normalized_heading = heading.strip().lower()
+    while lines and not lines[0].strip():
+        lines.pop(0)
+    if lines:
+        candidate = lines[0].strip()
+        if candidate.startswith("#"):
+            candidate = candidate.lstrip("#").strip()
+        if candidate.lower() == normalized_heading:
+            lines = lines[1:]
+    return "\n".join(lines).strip()
 
-    return PLACEHOLDER_RE.sub(_replace, content)
+
+def _render_citation_group(group_text: str, slot_numbers: dict[str, int]) -> str:
+    rendered_parts: list[str] = []
+    seen: set[str] = set()
+    for slot_key in _extract_slot_keys(group_text):
+        number = slot_numbers.get(slot_key)
+        label = "manual review" if number is None else str(number)
+        if label in seen:
+            continue
+        seen.add(label)
+        rendered_parts.append(label)
+    if not rendered_parts:
+        return "[manual review]"
+    return f"[{', '.join(rendered_parts)}]"
+
+
+def _render_content(content: str, heading: str, slot_numbers: dict[str, int]) -> str:
+    rendered = _strip_duplicate_heading(content, heading)
+
+    rendered = CITATION_GROUP_RE.sub(lambda match: _render_citation_group(match.group(1), slot_numbers), rendered)
+    rendered = CITATION_TOKEN_RE.sub(
+        lambda match: f"[{slot_numbers[match.group(1)]}]" if match.group(1) in slot_numbers else "[manual review]",
+        rendered,
+    )
+    rendered = re.sub(r"`(\[[^`]+\])`", r"\1", rendered)
+    rendered = FIGURE_PLACEHOLDER_RE.sub(
+        lambda match: f"\nFigure {match.group(1)}. Suggested insert: {match.group(2).strip()}\n",
+        rendered,
+    )
+    rendered = re.sub(r"\n{3,}", "\n\n", rendered)
+    return rendered.strip()
+
+
+def _content_paragraphs(content: str) -> list[str]:
+    return [paragraph.strip() for paragraph in re.split(r"\n\s*\n", content) if paragraph.strip()]
 
 
 def _render_reference_line(index: int, reference: ReferenceRecord) -> str:
@@ -112,9 +166,10 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
         md_lines.append(f"_Type: {outline.manuscript_type}_")
         md_lines.append("")
     for section in sections:
+        rendered_content = _render_content(section.content, section.heading, slot_numbers)
         md_lines.append(f"## {section.heading}")
         md_lines.append("")
-        md_lines.append(_render_content(section.content, slot_numbers))
+        md_lines.append(rendered_content)
         md_lines.append("")
     md_lines.append("## References")
     md_lines.append("")
@@ -129,7 +184,7 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
             {
                 "section_key": section.section_key,
                 "heading": section.heading,
-                "content": _render_content(section.content, slot_numbers),
+                "content": _render_content(section.content, section.heading, slot_numbers),
             }
             for section in sections
         ],
@@ -154,8 +209,10 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
     document = Document()
     document.add_heading(project.title, level=0)
     for section in sections:
+        rendered_content = _render_content(section.content, section.heading, slot_numbers)
         document.add_heading(section.heading, level=1)
-        document.add_paragraph(_render_content(section.content, slot_numbers))
+        for paragraph in _content_paragraphs(rendered_content):
+            document.add_paragraph(paragraph)
     document.add_heading("References", level=1)
     for index, reference in numbered_refs.items():
         document.add_paragraph(_render_reference_line(index, reference))

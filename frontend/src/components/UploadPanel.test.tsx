@@ -24,6 +24,7 @@ describe("UploadPanel", () => {
         ]}
         datasetProfile={null}
         jobs={[]}
+        pendingStage={null}
         onDeleteArtifact={vi.fn().mockResolvedValue(undefined)}
         onRunStage={vi.fn().mockResolvedValue(undefined)}
         onUploadFiles={vi.fn().mockResolvedValue(undefined)}
@@ -66,6 +67,7 @@ describe("UploadPanel", () => {
         ]}
         datasetProfile={null}
         jobs={[]}
+        pendingStage={null}
         onDeleteArtifact={onDeleteArtifact}
         onRunStage={vi.fn().mockResolvedValue(undefined)}
         onUploadFiles={vi.fn().mockResolvedValue(undefined)}

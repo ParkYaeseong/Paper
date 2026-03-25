@@ -120,6 +120,9 @@ describe("App", () => {
     });
     expect(screen.getByRole("heading", { level: 2, name: "Create Project" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Workspace" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run Evidence" })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run Retrieve" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Run Ground" })).not.toBeInTheDocument();
   });
 
   it("polls active jobs and refreshes workspace after completion", async () => {
@@ -226,18 +229,21 @@ describe("App", () => {
     });
 
     expect(runPipelineStage).toHaveBeenCalledWith("project-1", "ingest");
-    expect(screen.getByRole("button", { name: "Run Ingest" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Ingest Running..." })).toBeDisabled();
+    expect(screen.getByText("Ingest queued")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listJobs).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("Ingest running")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listJobs).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Run Ingest" })).toBeEnabled();
+    expect(screen.getByText("Ingest succeeded")).toBeInTheDocument();
   });
 
   it("deletes the selected project and clears the workspace when no projects remain", async () => {
@@ -338,6 +344,7 @@ describe("App", () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText("Quick Start")).toBeInTheDocument();
     expect(within(dialog).getByText("Upload Selected Files")).toBeInTheDocument();
+    expect(within(dialog).getByText("Run Evidence")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("tab", { name: "한국어" }));
@@ -347,6 +354,7 @@ describe("App", () => {
     expect(koreanDialog).toBeInTheDocument();
     expect(within(koreanDialog).getByText("빠른 시작")).toBeInTheDocument();
     expect(within(koreanDialog).getByText("업로드한 파일이 바뀌면 Run Ingest를 다시 실행하세요.")).toBeInTheDocument();
+    expect(within(koreanDialog).getByText("Run Evidence")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close guide" }));

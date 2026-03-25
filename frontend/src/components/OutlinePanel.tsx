@@ -1,15 +1,17 @@
+import { stageIsBusy, stageRunLabel, stageRunningLabel } from "../lib/stages";
 import type { JobRun, Outline } from "../lib/types";
 
 
 type OutlinePanelProps = {
   outline: Outline;
   jobs: JobRun[];
+  pendingStage: string | null;
   onRunStage: (stage: string) => Promise<void>;
 };
 
 
-export default function OutlinePanel({ outline, jobs, onRunStage }: OutlinePanelProps) {
-  const planBusy = jobs.some((job) => job.stage === "plan" && (job.status === "queued" || job.status === "running"));
+export default function OutlinePanel({ outline, jobs, pendingStage, onRunStage }: OutlinePanelProps) {
+  const planBusy = stageIsBusy("plan", jobs, pendingStage);
   return (
     <section className="panel">
       <div className="panel-header">
@@ -18,7 +20,7 @@ export default function OutlinePanel({ outline, jobs, onRunStage }: OutlinePanel
           <h3>Outline</h3>
         </div>
         <button className="secondary-button" disabled={planBusy} onClick={() => onRunStage("plan")} type="button">
-          Run Plan
+          {planBusy ? stageRunningLabel("plan") : stageRunLabel("plan")}
         </button>
       </div>
       {outline ? (

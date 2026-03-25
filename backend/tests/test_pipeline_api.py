@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from io import BytesIO
+from pathlib import Path
 
 
 def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, monkeypatch, db_session_factory) -> None:
@@ -37,7 +38,7 @@ def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, 
 
     from app.jobs import process_pipeline_job
 
-    for stage in ["ingest", "plan", "draft", "retrieve", "ground", "export"]:
+    for stage in ["ingest", "plan", "draft", "evidence", "export"]:
         response = client.post(f"/api/projects/{project['id']}/pipeline/{stage}")
         assert response.status_code == 202, response.text
         job = response.json()["job"]
@@ -55,3 +56,8 @@ def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, 
     assert len(body["citation_slots"]) >= 1
     assert len(body["evidence_matches"]) >= 1
     assert body["export_bundle"]["manifest_json"]["docx_path"].endswith(".docx")
+
+    markdown = Path(body["export_bundle"]["manifest_json"]["markdown_path"]).read_text(encoding="utf-8")
+    assert "## References" in markdown
+    assert "Biofoundry automation improves strain engineering throughput" in markdown
+    assert "Figure 1. Suggested insert:" in markdown or "Figure 2. Suggested insert:" in markdown

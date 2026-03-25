@@ -1,5 +1,6 @@
 import { useRef, useState } from "react";
 
+import { stageIsBusy, stageRunLabel, stageRunningLabel } from "../lib/stages";
 import type { Artifact, DatasetProfile, JobRun, Project } from "../lib/types";
 
 
@@ -8,6 +9,7 @@ type UploadPanelProps = {
   project: Project;
   datasetProfile: DatasetProfile;
   jobs: JobRun[];
+  pendingStage: string | null;
   onDeleteArtifact: (artifactId: string) => Promise<void>;
   onUploadFiles: (files: File[]) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
@@ -19,6 +21,7 @@ export default function UploadPanel({
   project,
   datasetProfile,
   jobs,
+  pendingStage,
   onDeleteArtifact,
   onUploadFiles,
   onRunStage,
@@ -40,7 +43,7 @@ export default function UploadPanel({
   );
   const tableCount = ingestOutOfDate ? inferredTableCount : (summary?.table_count ?? inferredTableCount);
   const visibleArtifacts = artifacts;
-  const ingestBusy = jobs.some((job) => job.stage === "ingest" && (job.status === "queued" || job.status === "running"));
+  const ingestBusy = stageIsBusy("ingest", jobs, pendingStage);
 
   async function handleUpload() {
     if (!files.length) return;
@@ -68,7 +71,7 @@ export default function UploadPanel({
           <h3>Upload</h3>
         </div>
         <button className="secondary-button" disabled={ingestBusy} onClick={() => onRunStage("ingest")} type="button">
-          Run Ingest
+          {ingestBusy ? stageRunningLabel("ingest") : stageRunLabel("ingest")}
         </button>
       </div>
       <p className="panel-copy">{project.objective || "Add an objective to anchor the planning stage."}</p>

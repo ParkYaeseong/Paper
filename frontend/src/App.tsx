@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import GuideModal from "./components/GuideModal";
 import Header from "./components/Header";
+import JobStatusBar from "./components/JobStatusBar";
 import LoginGate from "./components/LoginGate";
 import ProjectList from "./components/ProjectList";
 import ProjectWorkspace from "./components/ProjectWorkspace";
@@ -24,11 +25,7 @@ import {
 import { buildOidcAuthorizationUrl, buildOidcRedirectUri, parseOidcCallback, stripOidcCallbackParams } from "./lib/auth";
 import type { GuideLanguage } from "./lib/guide-content";
 import type { AuthConfig, JobRun, Project, User, Workspace } from "./lib/types";
-
-
-function isActiveJob(job: JobRun) {
-  return job.status === "queued" || job.status === "running";
-}
+import { isActiveJob, sortJobsByRecency } from "./lib/stages";
 
 
 export default function App() {
@@ -46,6 +43,8 @@ export default function App() {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pendingStage, setPendingStage] = useState<string | null>(null);
+  const [jobNotice, setJobNotice] = useState<{ id: string; stage: string; status: string; logText: string } | null>(null);
 
   async function refreshProjects() {
     const response = await listProjects();
@@ -104,6 +103,11 @@ export default function App() {
   }, [selectedProjectId, user]);
 
   useEffect(() => {
+    setPendingStage(null);
+    setJobNotice(null);
+  }, [selectedProjectId]);
+
+  useEffect(() => {
     if (!selectedProjectId || !user || !workspace) return;
     if (!workspace.jobs.some(isActiveJob)) return;
 
@@ -112,6 +116,15 @@ export default function App() {
         const response = await listJobs(selectedProjectId);
         setWorkspace((current) => (current ? { ...current, jobs: response.items } : current));
         if (!response.items.some(isActiveJob)) {
+          const latestJob = sortJobsByRecency(response.items)[0];
+          if (latestJob && (latestJob.status === "succeeded" || latestJob.status === "failed")) {
+            setJobNotice({
+              id: latestJob.id,
+              stage: latestJob.stage,
+              status: latestJob.status,
+              logText: latestJob.log_text,
+            });
+          }
           await refreshWorkspace(selectedProjectId);
         }
       } catch (caughtError) {
@@ -123,6 +136,62 @@ export default function App() {
       window.clearTimeout(timer);
     };
   }, [selectedProjectId, user, workspace]);
+
+  useEffect(() => {
+    if (!workspace) return;
+    const jobs = sortJobsByRecency(workspace.jobs);
+    const activeJob = jobs.find(isActiveJob);
+
+    if (activeJob) {
+      setJobNotice({
+        id: activeJob.id,
+        stage: activeJob.stage,
+        status: activeJob.status,
+        logText: activeJob.log_text,
+      });
+      return;
+    }
+
+    const latestJob = jobs[0];
+    if (!latestJob) {
+      return;
+    }
+
+    if (latestJob.status === "failed") {
+      setJobNotice({
+        id: latestJob.id,
+        stage: latestJob.stage,
+        status: latestJob.status,
+        logText: latestJob.log_text,
+      });
+      return;
+    }
+
+    if (latestJob.status === "succeeded") {
+      setJobNotice({
+        id: latestJob.id,
+        stage: latestJob.stage,
+        status: latestJob.status,
+        logText: latestJob.log_text,
+      });
+      const timer = window.setTimeout(() => {
+        setJobNotice((current) => (current?.id === latestJob.id ? null : current));
+      }, 3500);
+      return () => {
+        window.clearTimeout(timer);
+      };
+    }
+  }, [workspace, pendingStage]);
+
+  useEffect(() => {
+    if (!pendingStage) return;
+    setJobNotice({
+      id: `pending-${pendingStage}`,
+      stage: pendingStage,
+      status: "queued",
+      logText: "",
+    });
+  }, [pendingStage]);
 
   const selectedProject = useMemo(
     () => projects.find((project) => project.id === selectedProjectId) ?? null,
@@ -191,8 +260,23 @@ export default function App() {
 
   async function handleRunStage(stage: string) {
     if (!selectedProjectId) return;
-    await runPipelineStage(selectedProjectId, stage);
-    await refreshWorkspace(selectedProjectId);
+    setError(null);
+    setPendingStage(stage);
+    try {
+      await runPipelineStage(selectedProjectId, stage);
+      await refreshWorkspace(selectedProjectId);
+    } catch (caughtError) {
+      const message = caughtError instanceof Error ? caughtError.message : "Failed to run stage.";
+      setError(message);
+      setJobNotice({
+        id: `failed-${stage}-${Date.now()}`,
+        stage,
+        status: "failed",
+        logText: message,
+      });
+    } finally {
+      setPendingStage(null);
+    }
   }
 
   async function handleSaveSection(sectionId: string, content: string) {
@@ -221,6 +305,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <Header onLogout={handleLogout} onOpenGuide={() => setGuideOpen(true)} user={user} />
+      {jobNotice ? <JobStatusBar notice={jobNotice} /> : null}
       <GuideModal
         language={guideLanguage}
         onClose={() => setGuideOpen(false)}
@@ -238,6 +323,7 @@ export default function App() {
         {selectedProject && workspace ? (
           <ProjectWorkspace
             onDeleteArtifact={handleDeleteArtifact}
+            pendingStage={pendingStage}
             onReviewSlot={handleReviewSlot}
             onRunStage={handleRunStage}
             onSaveSection={handleSaveSection}

@@ -15,8 +15,7 @@ export default function LoginGate({ authConfig, onLogin, error }: LoginGateProps
         <p className="eyebrow">Evidence-grounded manuscript generation</p>
         <h1>Paper Authoring Studio</h1>
         <p className="hero-copy">
-          Upload internal data, generate a structured manuscript draft, retrieve supporting literature, ground citation slots,
-          and review the result before export.
+          Upload internal data, generate a structured manuscript draft, run evidence grounding, and review the result before export.
         </p>
         <div className="hero-meta">
           <span>{authConfig?.provider_name || "KBF SSO"}</span>

@@ -35,11 +35,12 @@ describe("ExportPanel", () => {
             updated_at: "2026-03-25T00:00:02Z",
           },
         ]}
+        pendingStage={null}
         onRunStage={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Run Export" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Export Running..." })).toBeDisabled();
     expect(screen.getByText("grounding failed")).toBeInTheDocument();
   });
 });

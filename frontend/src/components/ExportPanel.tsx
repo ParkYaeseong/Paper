@@ -1,15 +1,17 @@
+import { stageIsBusy, stageRunLabel, stageRunningLabel } from "../lib/stages";
 import type { ExportBundle, JobRun } from "../lib/types";
 
 
 type ExportPanelProps = {
   exportBundle: ExportBundle;
   jobs: JobRun[];
+  pendingStage: string | null;
   onRunStage: (stage: string) => Promise<void>;
 };
 
 
-export default function ExportPanel({ exportBundle, jobs, onRunStage }: ExportPanelProps) {
-  const exportBusy = jobs.some((job) => job.stage === "export" && (job.status === "queued" || job.status === "running"));
+export default function ExportPanel({ exportBundle, jobs, pendingStage, onRunStage }: ExportPanelProps) {
+  const exportBusy = stageIsBusy("export", jobs, pendingStage);
   const failedJob = [...jobs].reverse().find((job) => job.status === "failed") ?? null;
 
   return (
@@ -20,7 +22,7 @@ export default function ExportPanel({ exportBundle, jobs, onRunStage }: ExportPa
           <h3>Export</h3>
         </div>
         <button className="primary-button" disabled={exportBusy} onClick={() => onRunStage("export")} type="button">
-          Run Export
+          {exportBusy ? stageRunningLabel("export") : stageRunLabel("export")}
         </button>
       </div>
       {exportBundle ? (
@@ -33,17 +35,9 @@ export default function ExportPanel({ exportBundle, jobs, onRunStage }: ExportPa
           ))}
         </div>
       ) : (
-        <p className="muted-copy">No export bundle yet. Run export after grounding and review.</p>
+        <p className="muted-copy">No export bundle yet. Run export after evidence review.</p>
       )}
       {failedJob?.log_text ? <p className="error-text">{failedJob.log_text}</p> : null}
-      <div className="job-strip">
-        {jobs.slice(-6).map((job) => (
-          <div className="job-chip" key={job.id}>
-            <span>{job.stage}</span>
-            <strong>{job.status}</strong>
-          </div>
-        ))}
-      </div>
     </section>
   );
 }

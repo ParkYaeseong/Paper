@@ -9,6 +9,7 @@ import UploadPanel from "./UploadPanel";
 
 type ProjectWorkspaceProps = {
   onDeleteArtifact: (artifactId: string) => Promise<void>;
+  pendingStage: string | null;
   workspace: Workspace;
   onUploadFiles: (files: File[]) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
@@ -19,6 +20,7 @@ type ProjectWorkspaceProps = {
 
 export default function ProjectWorkspace({
   onDeleteArtifact,
+  pendingStage,
   workspace,
   onUploadFiles,
   onRunStage,
@@ -39,15 +41,17 @@ export default function ProjectWorkspace({
           artifacts={workspace.artifacts}
           datasetProfile={workspace.dataset_profile}
           jobs={workspace.jobs}
+          pendingStage={pendingStage}
           onDeleteArtifact={onDeleteArtifact}
           onRunStage={onRunStage}
           onUploadFiles={onUploadFiles}
           project={workspace.project}
         />
-        <OutlinePanel jobs={workspace.jobs} outline={workspace.outline} onRunStage={onRunStage} />
+        <OutlinePanel jobs={workspace.jobs} outline={workspace.outline} pendingStage={pendingStage} onRunStage={onRunStage} />
         <DraftPanel
           draftSections={workspace.draft_sections}
           jobs={workspace.jobs}
+          pendingStage={pendingStage}
           onRunStage={onRunStage}
           onSaveSection={onSaveSection}
         />
@@ -55,6 +59,7 @@ export default function ProjectWorkspace({
           citationSlots={workspace.citation_slots}
           evidenceMatches={workspace.evidence_matches}
           jobs={workspace.jobs}
+          pendingStage={pendingStage}
           onReviewSlot={onReviewSlot}
           onRunStage={onRunStage}
           references={workspace.reference_records}
@@ -62,6 +67,7 @@ export default function ProjectWorkspace({
         <ExportPanel
           exportBundle={workspace.export_bundle}
           jobs={workspace.jobs}
+          pendingStage={pendingStage}
           onRunStage={onRunStage}
         />
       </div>

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from typing import Any
 from urllib.parse import quote_plus
+import xml.etree.ElementTree as ET
 
 import requests
 from sqlalchemy import select
@@ -27,6 +28,59 @@ def build_queries(project: Project, claim_text: str) -> list[str]:
     ]
 
 
+def _joined_text(node: ET.Element | None) -> str:
+    if node is None:
+        return ""
+    return " ".join(chunk.strip() for chunk in node.itertext() if chunk and chunk.strip()).strip()
+
+
+def _parse_pubmed_article_details(xml_text: str) -> dict[str, dict[str, Any]]:
+    if not xml_text.strip():
+        return {}
+    root = ET.fromstring(xml_text)
+    items: dict[str, dict[str, Any]] = {}
+    for article in root.findall(".//PubmedArticle"):
+        pubmed_id = _joined_text(article.find("./MedlineCitation/PMID"))
+        if not pubmed_id:
+            continue
+        authors: list[str] = []
+        for author in article.findall(".//AuthorList/Author"):
+            collective_name = _joined_text(author.find("./CollectiveName"))
+            if collective_name:
+                authors.append(collective_name)
+                continue
+            last_name = _joined_text(author.find("./LastName"))
+            initials = _joined_text(author.find("./Initials"))
+            formatted = " ".join(part for part in [last_name, initials] if part).strip()
+            if formatted:
+                authors.append(formatted)
+
+        year_text = (
+            _joined_text(article.find(".//JournalIssue/PubDate/Year"))
+            or _joined_text(article.find(".//ArticleDate/Year"))
+            or _joined_text(article.find(".//PubDate/MedlineDate"))
+        )
+        year = int(year_text[:4]) if year_text[:4].isdigit() else None
+
+        doi = ""
+        for article_id in article.findall(".//ArticleIdList/ArticleId"):
+            if str(article_id.attrib.get("IdType") or "").lower() == "doi":
+                doi = _joined_text(article_id)
+                if doi:
+                    break
+
+        abstract_parts = [_joined_text(node) for node in article.findall(".//Abstract/AbstractText")]
+        items[pubmed_id] = {
+            "title": _joined_text(article.find(".//ArticleTitle")),
+            "abstract": " ".join(part for part in abstract_parts if part).strip(),
+            "authors": authors,
+            "venue": _joined_text(article.find(".//Journal/Title")),
+            "year": year,
+            "doi": doi,
+        }
+    return items
+
+
 def search_pubmed(query: str, limit: int = 5) -> list[dict[str, Any]]:
     base = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
     search_response = requests.get(
@@ -44,25 +98,56 @@ def search_pubmed(query: str, limit: int = 5) -> list[dict[str, Any]]:
         timeout=20,
     )
     summary_response.raise_for_status()
+    fetch_response = requests.get(
+        f"{base}/efetch.fcgi",
+        params={"db": "pubmed", "retmode": "xml", "id": ",".join(ids)},
+        timeout=20,
+    )
+    fetch_response.raise_for_status()
     result = summary_response.json().get("result", {})
+    details_by_id = _parse_pubmed_article_details(fetch_response.text)
     items: list[dict[str, Any]] = []
     for pubmed_id in ids:
         paper = result.get(pubmed_id) or {}
-        authors = [str(author.get("name") or "").strip() for author in paper.get("authors") or [] if author.get("name")]
+        details = details_by_id.get(pubmed_id) or {}
+        authors = details.get("authors") or [
+            str(author.get("name") or "").strip() for author in paper.get("authors") or [] if author.get("name")
+        ]
         items.append(
             {
                 "source": "pubmed",
                 "external_id": f"PMID:{pubmed_id}",
-                "title": str(paper.get("title") or "").strip(),
-                "abstract": "",
+                "title": str(details.get("title") or paper.get("title") or "").strip(),
+                "abstract": str(details.get("abstract") or "").strip(),
                 "authors": authors,
-                "venue": str(paper.get("fulljournalname") or "").strip(),
-                "year": int(str(paper.get("pubdate") or "0")[:4] or 0) if str(paper.get("pubdate") or "")[:4].isdigit() else None,
-                "doi": "",
+                "venue": str(details.get("venue") or paper.get("fulljournalname") or "").strip(),
+                "year": details.get("year")
+                or (
+                    int(str(paper.get("pubdate") or "0")[:4] or 0)
+                    if str(paper.get("pubdate") or "")[:4].isdigit()
+                    else None
+                ),
+                "doi": str(details.get("doi") or "").strip(),
                 "url": f"https://pubmed.ncbi.nlm.nih.gov/{pubmed_id}/",
             }
         )
     return items
+
+
+def _reconstruct_openalex_abstract(inverted_index: dict[str, Any] | None) -> str:
+    if not isinstance(inverted_index, dict):
+        return ""
+    positioned_tokens: list[tuple[int, str]] = []
+    for token, positions in inverted_index.items():
+        if not isinstance(positions, list):
+            continue
+        for position in positions:
+            if isinstance(position, int):
+                positioned_tokens.append((position, str(token)))
+    if not positioned_tokens:
+        return ""
+    positioned_tokens.sort(key=lambda item: item[0])
+    return " ".join(token for _, token in positioned_tokens).strip()
 
 
 def search_openalex(query: str, limit: int = 5) -> list[dict[str, Any]]:
@@ -85,12 +170,12 @@ def search_openalex(query: str, limit: int = 5) -> list[dict[str, Any]]:
                 "source": "openalex",
                 "external_id": str(paper.get("id") or "").strip(),
                 "title": str(paper.get("title") or "").strip(),
-                "abstract": "",
+                "abstract": _reconstruct_openalex_abstract(paper.get("abstract_inverted_index")),
                 "authors": authors,
                 "venue": str(paper.get("primary_location", {}).get("source", {}).get("display_name") or "").strip(),
                 "year": paper.get("publication_year"),
                 "doi": str(paper.get("doi") or "").replace("https://doi.org/", ""),
-                "url": str(paper.get("id") or "").strip(),
+                "url": str(paper.get("primary_location", {}).get("landing_page_url") or paper.get("id") or "").strip(),
             }
         )
     return items

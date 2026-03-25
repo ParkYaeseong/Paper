@@ -19,7 +19,7 @@ from app.services.retrieval import run_retrieve
 
 
 ACTIVE_JOB_STATUSES = {"queued", "running"}
-PIPELINE_STAGES = {"ingest", "plan", "draft", "retrieve", "ground", "export"}
+PIPELINE_STAGES = {"ingest", "plan", "draft", "retrieve", "ground", "evidence", "export"}
 
 
 def _utcnow() -> datetime:
@@ -52,7 +52,7 @@ def ensure_stage_prerequisites(session: Session, project_id: str, stage: str) ->
     if stage == "draft":
         if _latest(session, DatasetProfile, project_id) is None or _latest(session, Outline, project_id) is None:
             raise ValueError("Planning must complete before drafting")
-    if stage == "retrieve":
+    if stage in {"retrieve", "evidence"}:
         slots = session.scalars(select(CitationSlot).where(CitationSlot.project_id == project_id)).first()
         if slots is None:
             raise ValueError("Planning must create citation slots before retrieval")
@@ -76,6 +76,9 @@ def run_pipeline_stage(session: Session, project: Project, settings: Settings, s
     if stage == "retrieve":
         return run_retrieve(session, project)
     if stage == "ground":
+        return run_grounding(session, project.id)
+    if stage == "evidence":
+        run_retrieve(session, project)
         return run_grounding(session, project.id)
     if stage == "export":
         return run_export(session, project, settings)
