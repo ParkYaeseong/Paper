@@ -112,9 +112,17 @@ export function listJobs(projectId: string): Promise<JobListResponse> {
 }
 
 export function runPipelineStage(projectId: string, stage: string) {
+  return runPipelineStageWithInput(projectId, stage);
+}
+
+export function runPipelineStageWithInput(projectId: string, stage: string, input?: { mode?: string }) {
   return apiFetch<{ ok: boolean; job: { id: string; stage: string; status: string } }>(
     `/api/projects/${projectId}/pipeline/${stage}`,
-    { method: "POST" }
+    {
+      method: "POST",
+      headers: input ? { "Content-Type": "application/json" } : undefined,
+      body: input ? JSON.stringify(input) : undefined
+    }
   );
 }
 
@@ -128,6 +136,14 @@ export function updateDraftSection(projectId: string, sectionId: string, content
 
 export function updateCitationSlot(projectId: string, slotId: string, input: { status: string; selected_reference_ids_json?: string[] }) {
   return apiFetch(`/api/projects/${projectId}/citation-slots/${slotId}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input)
+  });
+}
+
+export function updateFigureSpec(projectId: string, figureSpecId: string, input: { figure_asset_id: string }) {
+  return apiFetch(`/api/projects/${projectId}/figure-specs/${figureSpecId}`, {
     method: "PATCH",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input)

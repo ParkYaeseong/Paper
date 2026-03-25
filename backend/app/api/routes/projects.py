@@ -1,6 +1,9 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from fastapi import APIRouter, Depends, File, HTTPException, Request, Response, UploadFile, status
+from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -128,3 +131,20 @@ def delete_artifact(
     session.delete(artifact)
     session.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/{project_id}/artifacts/{artifact_id}/download")
+def download_artifact(
+    project_id: str,
+    artifact_id: str,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_db_session),
+):
+    project = _get_project_or_403(session, project_id, user)
+    artifact = session.scalar(select(Artifact).where(Artifact.project_id == project.id, Artifact.id == artifact_id))
+    if artifact is None:
+        raise HTTPException(status_code=404, detail="Artifact not found")
+    path = Path(artifact.storage_path)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Artifact file missing")
+    return FileResponse(path, media_type=artifact.content_type, filename=artifact.filename)

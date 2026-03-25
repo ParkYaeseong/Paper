@@ -38,6 +38,9 @@ services:
       PAPER_DATABASE_URL: ${PAPER_DATABASE_URL:-postgresql+psycopg://paper:paper@postgres:5432/paper}
       PAPER_REDIS_URL: ${PAPER_REDIS_URL:-redis://redis:6379/0}
       PAPER_STORAGE_ROOT: ${PAPER_STORAGE_ROOT:-/app/data}
+      PAPER_PAPERBANANA_ROOT: ${PAPER_PAPERBANANA_ROOT:-/opt/PaperBanana}
+      PAPER_PAPERBANANA_PYTHON: ${PAPER_PAPERBANANA_PYTHON:-}
+      PAPER_PAPERBANANA_CANDIDATES: ${PAPER_PAPERBANANA_CANDIDATES:-1}
       PAPER_OIDC_ISSUER: ${PAPER_OIDC_ISSUER:-https://sso.k-biofoundrycopilot.duckdns.org/realms/kbf}
       PAPER_OIDC_CLIENT_ID: ${PAPER_OIDC_CLIENT_ID:-paper}
       PAPER_OIDC_AUDIENCE: ${PAPER_OIDC_AUDIENCE:-paper}
@@ -56,6 +59,7 @@ services:
       && uvicorn app.main:app --host 0.0.0.0 --port 8000"
     volumes:
       - ./data:/app/data
+      - /opt/PaperBanana:/opt/PaperBanana
       - /opt/kbf-llm-usage/sdk/python:/opt/kbf-llm-usage/sdk/python:ro
     ports:
       - "127.0.0.1:18093:8000"
@@ -80,6 +84,9 @@ services:
       PAPER_DATABASE_URL: ${PAPER_DATABASE_URL:-postgresql+psycopg://paper:paper@postgres:5432/paper}
       PAPER_REDIS_URL: ${PAPER_REDIS_URL:-redis://redis:6379/0}
       PAPER_STORAGE_ROOT: ${PAPER_STORAGE_ROOT:-/app/data}
+      PAPER_PAPERBANANA_ROOT: ${PAPER_PAPERBANANA_ROOT:-/opt/PaperBanana}
+      PAPER_PAPERBANANA_PYTHON: ${PAPER_PAPERBANANA_PYTHON:-}
+      PAPER_PAPERBANANA_CANDIDATES: ${PAPER_PAPERBANANA_CANDIDATES:-1}
       PAPER_OIDC_ISSUER: ${PAPER_OIDC_ISSUER:-https://sso.k-biofoundrycopilot.duckdns.org/realms/kbf}
       PAPER_OIDC_CLIENT_ID: ${PAPER_OIDC_CLIENT_ID:-paper}
       PAPER_OIDC_AUDIENCE: ${PAPER_OIDC_AUDIENCE:-paper}
@@ -97,6 +104,7 @@ services:
       bash -lc "python -m app.jobs"
     volumes:
       - ./data:/app/data
+      - /opt/PaperBanana:/opt/PaperBanana
       - /opt/kbf-llm-usage/sdk/python:/opt/kbf-llm-usage/sdk/python:ro
 
   frontend:

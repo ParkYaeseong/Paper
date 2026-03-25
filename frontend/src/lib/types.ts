@@ -115,6 +115,51 @@ export type EvidenceMatch = {
   notes: string;
 };
 
+export type QualityIssue = {
+  code: string;
+  message: string;
+  section_key?: string;
+  slot_key?: string;
+  figure_key?: string;
+  reference_title?: string;
+};
+
+export type QualityReport = {
+  id: string;
+  version: number;
+  critical_issues_json: QualityIssue[];
+  warnings_json: QualityIssue[];
+  recommended_actions_json: string[];
+  submission_ready: boolean;
+  created_at: string;
+} | null;
+
+export type FigureAsset = {
+  id: string;
+  artifact_id: string;
+  provider: string;
+  status: string;
+  selected: boolean;
+  filename: string;
+  storage_path: string;
+  download_url: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type FigureSpec = {
+  id: string;
+  section_key: string;
+  figure_key: string;
+  figure_number: number;
+  caption_draft: string;
+  source_excerpt: string;
+  visual_intent: string;
+  status: string;
+  selected_figure_asset_id: string | null;
+  assets: FigureAsset[];
+};
+
 export type ExportBundle = {
   id: string;
   status: string;
@@ -144,6 +189,8 @@ export type Workspace = {
   citation_slots: CitationSlot[];
   reference_records: ReferenceRecord[];
   evidence_matches: EvidenceMatch[];
+  quality_report: QualityReport;
+  figure_specs: FigureSpec[];
   export_bundle: ExportBundle;
   jobs: JobRun[];
 };

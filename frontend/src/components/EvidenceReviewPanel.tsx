@@ -8,6 +8,7 @@ type EvidenceReviewPanelProps = {
   jobs: JobRun[];
   pendingStage: string | null;
   references: ReferenceRecord[];
+  showManualControls: boolean;
   onRunStage: (stage: string) => Promise<void>;
   onReviewSlot: (slotId: string, status: string, selectedReferenceIds?: string[]) => Promise<void>;
 };
@@ -26,6 +27,7 @@ export default function EvidenceReviewPanel({
   jobs,
   pendingStage,
   references,
+  showManualControls,
   onRunStage,
   onReviewSlot
 }: EvidenceReviewPanelProps) {
@@ -40,11 +42,13 @@ export default function EvidenceReviewPanel({
           <p className="eyebrow">Grounding</p>
           <h3>Evidence Review</h3>
         </div>
-        <div className="button-row">
-          <button className="secondary-button" disabled={evidenceBusy} onClick={() => onRunStage("evidence")} type="button">
-            {evidenceBusy ? stageRunningLabel("evidence") : stageRunLabel("evidence")}
-          </button>
-        </div>
+        {showManualControls ? (
+          <div className="button-row">
+            <button className="secondary-button" disabled={evidenceBusy} onClick={() => onRunStage("evidence")} type="button">
+              {evidenceBusy ? stageRunningLabel("evidence") : stageRunLabel("evidence")}
+            </button>
+          </div>
+        ) : null}
       </div>
       {citationSlots.length ? (
         <div className="evidence-list">

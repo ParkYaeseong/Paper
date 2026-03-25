@@ -36,11 +36,20 @@ describe("ExportPanel", () => {
           },
         ]}
         pendingStage={null}
-        onRunStage={vi.fn()}
+        qualityReport={{
+          id: "quality-1",
+          version: 1,
+          critical_issues_json: [{ code: "manual_review_marker", message: "Manual review remains." }],
+          warnings_json: [],
+          recommended_actions_json: [],
+          submission_ready: false,
+          created_at: "2026-03-25T00:00:00Z",
+        }}
+        onRunExport={vi.fn()}
       />,
     );
 
-    expect(screen.getByRole("button", { name: "Export Running..." })).toBeDisabled();
+    expect(screen.getAllByRole("button", { name: "Export Running..." })).toHaveLength(2);
     expect(screen.getByText("grounding failed")).toBeInTheDocument();
   });
 });

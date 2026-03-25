@@ -5,7 +5,7 @@ from pathlib import Path
 import zipfile
 
 from app.config import get_settings
-from app.models import CitationSlot, DraftSection, EvidenceMatch, Project, ReferenceRecord
+from app.models import CitationSlot, DraftSection, EvidenceMatch, Project, QualityReport, ReferenceRecord
 from app.services.exporting import run_export
 
 
@@ -135,7 +135,19 @@ def test_run_export_normalizes_citation_variants_and_figure_placeholders(db_sess
         )
         session.commit()
 
-        bundle = run_export(session, project, get_settings())
+        session.add(
+            QualityReport(
+                project_id=project.id,
+                version=1,
+                critical_issues_json=[],
+                warnings_json=[],
+                recommended_actions_json=[],
+                submission_ready=True,
+            )
+        )
+        session.commit()
+
+        bundle = run_export(session, project, get_settings(), mode="final")
 
         markdown = Path(bundle.manifest_json["markdown_path"]).read_text(encoding="utf-8")
         assert markdown.count("## Introduction") == 1
@@ -149,3 +161,44 @@ def test_run_export_normalizes_citation_variants_and_figure_placeholders(db_sess
         docx_text = _docx_text(Path(bundle.manifest_json["docx_path"]))
         assert "Figure 1. Suggested insert: Overall protein_pipeline architecture and stage flow." in docx_text
         assert "Expert review remains necessary [manual review]." in docx_text
+
+
+def test_run_export_blocks_final_mode_when_submission_not_ready(db_session_factory) -> None:
+    with db_session_factory() as session:
+        project = Project(
+            owner_sub="user-1",
+            owner_username="tester",
+            title="blocked final export",
+            objective="Ensure final exports are gated by quality review.",
+        )
+        session.add(project)
+        session.flush()
+
+        session.add(
+            DraftSection(
+                project_id=project.id,
+                section_key="introduction",
+                heading="Introduction",
+                version=1,
+                content="Working draft content.",
+                status="drafted",
+            )
+        )
+        session.add(
+            QualityReport(
+                project_id=project.id,
+                version=1,
+                critical_issues_json=[{"code": "manual_review_marker", "message": "Manual review remains."}],
+                warnings_json=[],
+                recommended_actions_json=["Resolve manual review markers before final export."],
+                submission_ready=False,
+            )
+        )
+        session.commit()
+
+        try:
+            run_export(session, project, get_settings(), mode="final")
+        except ValueError as exc:
+            assert str(exc) == "Final export is blocked until all critical quality issues are resolved"
+        else:
+            raise AssertionError("Expected final export to be blocked")

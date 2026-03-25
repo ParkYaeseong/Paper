@@ -67,6 +67,18 @@ class Project(TimestampMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
+    quality_reports: Mapped[list["QualityReport"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    figure_specs: Mapped[list["FigureSpec"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
+    figure_assets: Mapped[list["FigureAsset"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )
     job_runs: Mapped[list["JobRun"]] = relationship(back_populates="project", cascade="all, delete-orphan")
 
 
@@ -84,6 +96,10 @@ class Artifact(TimestampMixin, Base):
     metadata_json: Mapped[dict | None] = mapped_column(JSON, default=dict)
 
     project: Mapped[Project] = relationship(back_populates="artifacts")
+    figure_assets: Mapped[list["FigureAsset"]] = relationship(
+        back_populates="artifact",
+        cascade="all, delete-orphan",
+    )
 
 
 class DatasetProfile(TimestampMixin, Base):
@@ -198,6 +214,65 @@ class ReviewDecision(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
 
     project: Mapped[Project] = relationship(back_populates="review_decisions")
+
+
+class QualityReport(Base):
+    __tablename__ = "quality_reports"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    version: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    critical_issues_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    warnings_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    recommended_actions_json: Mapped[list] = mapped_column(JSON, default=list, nullable=False)
+    submission_ready: Mapped[bool] = mapped_column(default=False, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow, nullable=False)
+
+    project: Mapped[Project] = relationship(back_populates="quality_reports")
+
+
+class FigureSpec(TimestampMixin, Base):
+    __tablename__ = "figure_specs"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    section_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    figure_key: Mapped[str] = mapped_column(String(100), nullable=False, index=True)
+    figure_number: Mapped[int] = mapped_column(Integer, nullable=False)
+    caption_draft: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    source_excerpt: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    visual_intent: Mapped[str] = mapped_column(Text, default="", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="pending", nullable=False)
+
+    project: Mapped[Project] = relationship(back_populates="figure_specs")
+    figure_assets: Mapped[list["FigureAsset"]] = relationship(
+        back_populates="figure_spec",
+        cascade="all, delete-orphan",
+    )
+
+
+class FigureAsset(TimestampMixin, Base):
+    __tablename__ = "figure_assets"
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=_uuid)
+    project_id: Mapped[str] = mapped_column(ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True)
+    figure_spec_id: Mapped[str] = mapped_column(
+        ForeignKey("figure_specs.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    artifact_id: Mapped[str] = mapped_column(
+        ForeignKey("artifacts.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    provider: Mapped[str] = mapped_column(String(100), default="paperbanana", nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="generated", nullable=False)
+    selected: Mapped[bool] = mapped_column(default=False, nullable=False)
+
+    project: Mapped[Project] = relationship(back_populates="figure_assets")
+    figure_spec: Mapped[FigureSpec] = relationship(back_populates="figure_assets")
+    artifact: Mapped[Artifact] = relationship(back_populates="figure_assets")
 
 
 class ExportBundle(Base):

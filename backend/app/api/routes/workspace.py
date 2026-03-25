@@ -12,9 +12,22 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.db import get_db_session
 from app.deps import require_user
-from app.models import Artifact, CitationSlot, DatasetProfile, DraftSection, EvidenceMatch, ExportBundle, JobRun, Outline, Project, ReferenceRecord
+from app.models import (
+    Artifact,
+    CitationSlot,
+    DatasetProfile,
+    DraftSection,
+    EvidenceMatch,
+    ExportBundle,
+    FigureSpec,
+    JobRun,
+    Outline,
+    Project,
+    QualityReport,
+    ReferenceRecord,
+)
 from app.queue import enqueue_pipeline_job
-from app.services.exporting import run_export
+from app.services.quality import run_quality_audit
 from app.services.pipeline_runner import ensure_stage_prerequisites, get_active_stage_job
 
 
@@ -28,6 +41,14 @@ class ReviewSectionUpdate(BaseModel):
 class ReviewCitationUpdate(BaseModel):
     status: str
     selected_reference_ids_json: list[str] | None = None
+
+
+class PipelineRunRequest(BaseModel):
+    mode: str | None = None
+
+
+class FigureSelectionUpdate(BaseModel):
+    figure_asset_id: str
 
 
 def _is_admin(user: dict) -> bool:
@@ -136,6 +157,52 @@ def _serialize_match(match: EvidenceMatch) -> dict[str, object]:
     }
 
 
+def _serialize_quality_report(report: QualityReport) -> dict[str, object]:
+    return {
+        "id": report.id,
+        "version": report.version,
+        "critical_issues_json": report.critical_issues_json,
+        "warnings_json": report.warnings_json,
+        "recommended_actions_json": report.recommended_actions_json,
+        "submission_ready": report.submission_ready,
+        "created_at": _serialize_datetime(report.created_at),
+    }
+
+
+def _serialize_figure_spec(spec: FigureSpec) -> dict[str, object]:
+    assets = sorted(spec.figure_assets, key=lambda item: (not item.selected, item.created_at))
+    return {
+        "id": spec.id,
+        "section_key": spec.section_key,
+        "figure_key": spec.figure_key,
+        "figure_number": spec.figure_number,
+        "caption_draft": spec.caption_draft,
+        "source_excerpt": spec.source_excerpt,
+        "visual_intent": spec.visual_intent,
+        "status": spec.status,
+        "selected_figure_asset_id": next((asset.id for asset in assets if asset.selected), None),
+        "assets": [
+            {
+                "id": asset.id,
+                "artifact_id": asset.artifact_id,
+                "provider": asset.provider,
+                "status": asset.status,
+                "selected": asset.selected,
+                "filename": asset.artifact.filename if asset.artifact is not None else "",
+                "storage_path": asset.artifact.storage_path if asset.artifact is not None else "",
+                "download_url": (
+                    f"/api/projects/{spec.project_id}/artifacts/{asset.artifact_id}/download"
+                    if asset.artifact is not None
+                    else ""
+                ),
+                "created_at": _serialize_datetime(asset.created_at),
+                "updated_at": _serialize_datetime(asset.updated_at),
+            }
+            for asset in assets
+        ],
+    }
+
+
 def _serialize_job(job: JobRun) -> dict[str, object]:
     return {
         "id": job.id,
@@ -173,10 +240,14 @@ def get_workspace(
     profile = _latest(session, DatasetProfile, project.id)
     outline = _latest(session, Outline, project.id)
     export_bundle = _latest(session, ExportBundle, project.id)
+    quality_report = _latest(session, QualityReport, project.id)
     sections = list(session.scalars(select(DraftSection).where(DraftSection.project_id == project.id).order_by(DraftSection.section_key, DraftSection.version)))
     slots = list(session.scalars(select(CitationSlot).where(CitationSlot.project_id == project.id).order_by(CitationSlot.section_key, CitationSlot.ordinal)))
     references = list(session.scalars(select(ReferenceRecord).where(ReferenceRecord.project_id == project.id).order_by(ReferenceRecord.created_at)))
     matches = list(session.scalars(select(EvidenceMatch).where(EvidenceMatch.project_id == project.id).order_by(EvidenceMatch.created_at)))
+    figure_specs = list(
+        session.scalars(select(FigureSpec).where(FigureSpec.project_id == project.id).order_by(FigureSpec.figure_number)).all()
+    )
     jobs = list(session.scalars(select(JobRun).where(JobRun.project_id == project.id).order_by(JobRun.created_at)))
     return {
         "project": _serialize_project(project),
@@ -195,6 +266,8 @@ def get_workspace(
         "citation_slots": [_serialize_slot(slot) for slot in slots],
         "reference_records": [_serialize_reference(reference) for reference in references],
         "evidence_matches": [_serialize_match(match) for match in matches],
+        "quality_report": None if quality_report is None else _serialize_quality_report(quality_report),
+        "figure_specs": [_serialize_figure_spec(spec) for spec in figure_specs],
         "export_bundle": None
         if export_bundle is None
         else {
@@ -212,6 +285,7 @@ def run_pipeline_stage(
     project_id: str,
     stage: str,
     request: Request,
+    payload: PipelineRunRequest | None = None,
     user: dict = Depends(require_user),
     session: Session = Depends(get_db_session),
 ):
@@ -225,7 +299,10 @@ def run_pipeline_stage(
     if active_job is not None:
         raise HTTPException(status_code=409, detail="An active job already exists for this stage")
 
-    job = JobRun(project_id=project.id, stage=stage, status="queued", payload_json={"project_id": project.id, "stage": stage})
+    payload_json = {"project_id": project.id, "stage": stage}
+    if payload is not None and payload.mode:
+        payload_json["mode"] = payload.mode
+    job = JobRun(project_id=project.id, stage=stage, status="queued", payload_json=payload_json)
     session.add(job)
     session.commit()
     session.refresh(job)
@@ -260,6 +337,7 @@ def update_draft_section(
     session.add(section)
     session.commit()
     session.refresh(section)
+    run_quality_audit(session, project)
     return {"ok": True, "section": _serialize_section(section)}
 
 
@@ -287,7 +365,38 @@ def update_citation_slot(
     session.add(slot)
     session.commit()
     session.refresh(slot)
+    run_quality_audit(session, project)
     return {"ok": True, "slot": _serialize_slot(slot)}
+
+
+@router.patch("/figure-specs/{figure_spec_id}")
+def update_figure_spec_selection(
+    project_id: str,
+    figure_spec_id: str,
+    payload: FigureSelectionUpdate,
+    user: dict = Depends(require_user),
+    session: Session = Depends(get_db_session),
+):
+    from app.models import FigureAsset
+
+    project = _project_or_403(session, project_id, user)
+    spec = session.get(FigureSpec, figure_spec_id)
+    if spec is None or spec.project_id != project.id:
+        raise HTTPException(status_code=404, detail="Figure spec not found")
+
+    assets = list(session.scalars(select(FigureAsset).where(FigureAsset.figure_spec_id == spec.id)).all())
+    selected = next((asset for asset in assets if asset.id == payload.figure_asset_id), None)
+    if selected is None:
+        raise HTTPException(status_code=404, detail="Figure asset not found")
+    for asset in assets:
+        asset.selected = asset.id == selected.id
+        session.add(asset)
+    spec.status = "selected"
+    session.add(spec)
+    session.commit()
+    run_quality_audit(session, project)
+    session.refresh(spec)
+    return {"ok": True, "figure_spec": _serialize_figure_spec(spec)}
 
 
 @router.get("/exports/{bundle_id}/{kind}")

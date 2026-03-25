@@ -1,18 +1,20 @@
-import { stageIsBusy, stageRunLabel, stageRunningLabel } from "../lib/stages";
-import type { ExportBundle, JobRun } from "../lib/types";
+import { stageIsBusy, stageRunningLabel } from "../lib/stages";
+import type { ExportBundle, JobRun, QualityReport } from "../lib/types";
 
 
 type ExportPanelProps = {
   exportBundle: ExportBundle;
   jobs: JobRun[];
   pendingStage: string | null;
-  onRunStage: (stage: string) => Promise<void>;
+  qualityReport: QualityReport;
+  onRunExport: (mode: "draft" | "final") => Promise<void>;
 };
 
 
-export default function ExportPanel({ exportBundle, jobs, pendingStage, onRunStage }: ExportPanelProps) {
+export default function ExportPanel({ exportBundle, jobs, pendingStage, qualityReport, onRunExport }: ExportPanelProps) {
   const exportBusy = stageIsBusy("export", jobs, pendingStage);
   const failedJob = [...jobs].reverse().find((job) => job.status === "failed") ?? null;
+  const finalBlocked = !qualityReport?.submission_ready;
 
   return (
     <section className="panel">
@@ -21,10 +23,20 @@ export default function ExportPanel({ exportBundle, jobs, pendingStage, onRunSta
           <p className="eyebrow">Output</p>
           <h3>Export</h3>
         </div>
-        <button className="primary-button" disabled={exportBusy} onClick={() => onRunStage("export")} type="button">
-          {exportBusy ? stageRunningLabel("export") : stageRunLabel("export")}
-        </button>
+        <div className="button-row">
+          <button className="secondary-button" disabled={exportBusy} onClick={() => onRunExport("draft")} type="button">
+            {exportBusy ? stageRunningLabel("export") : "Draft Export"}
+          </button>
+          <button className="primary-button" disabled={exportBusy || finalBlocked} onClick={() => onRunExport("final")} type="button">
+            {exportBusy ? stageRunningLabel("export") : "Final Export"}
+          </button>
+        </div>
       </div>
+      {finalBlocked ? (
+        <p className="muted-copy">Final Export unlocks after all critical quality issues are cleared.</p>
+      ) : (
+        <p className="muted-copy">Final Export is available because the latest quality report has no critical issues.</p>
+      )}
       {exportBundle ? (
         <div className="export-grid">
           {Object.entries(exportBundle.download_urls).map(([label, href]) => (
@@ -35,7 +47,7 @@ export default function ExportPanel({ exportBundle, jobs, pendingStage, onRunSta
           ))}
         </div>
       ) : (
-        <p className="muted-copy">No export bundle yet. Run export after evidence review.</p>
+        <p className="muted-copy">No export bundle yet. Run Draft Export for a working manuscript or Final Export for a gated submission-ready bundle.</p>
       )}
       {failedJob?.log_text ? <p className="error-text">{failedJob.log_text}</p> : null}
     </section>

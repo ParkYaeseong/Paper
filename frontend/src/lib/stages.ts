@@ -39,6 +39,21 @@ const STAGE_META: Record<string, StageMeta> = {
     runningLabel: "Evidence Running...",
     description: "Searching literature and grounding citation slots.",
   },
+  quality: {
+    label: "Quality",
+    runningLabel: "Quality Running...",
+    description: "Auditing citations, placeholders, and section completeness.",
+  },
+  figures: {
+    label: "Figures",
+    runningLabel: "Figures Running...",
+    description: "Generating figure candidates from manuscript placeholders.",
+  },
+  run_all: {
+    label: "Run All",
+    runningLabel: "Run All Running...",
+    description: "Running the full manuscript pipeline through quality review.",
+  },
   export: {
     label: "Export",
     runningLabel: "Export Running...",
@@ -80,6 +95,9 @@ export function stageLabel(stage: string) {
 
 
 export function stageRunLabel(stage: string) {
+  if (stage === "run_all") {
+    return stageLabel(stage);
+  }
   return `Run ${stageLabel(stage)}`;
 }
 
@@ -96,6 +114,13 @@ export function stageDescription(stage: string) {
 
 export function stageIsBusy(stage: string, jobs: JobRun[], pendingStage: string | null) {
   const aliases = STAGE_ALIASES[stage] || [stage];
+  const runAllActive = jobs.some((job) => job.stage === "run_all" && isActiveJob(job));
+  if (runAllActive && stage !== "run_all") {
+    return true;
+  }
+  if (pendingStage === "run_all" && stage !== "run_all") {
+    return true;
+  }
   if (pendingStage && aliases.includes(pendingStage)) {
     return true;
   }

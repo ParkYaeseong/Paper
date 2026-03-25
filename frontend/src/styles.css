@@ -453,6 +453,20 @@ a {
   box-shadow: var(--shadow);
 }
 
+.workspace-hero-copy {
+  display: grid;
+  gap: 14px;
+  justify-items: end;
+  max-width: 720px;
+}
+
+.workspace-hero-actions {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+  justify-content: end;
+}
+
 .workspace-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
   align-items: start;
@@ -516,6 +530,73 @@ a {
   gap: 4px;
 }
 
+.quality-summary,
+.quality-list,
+.figure-spec-list,
+.figure-candidate-grid {
+  display: grid;
+  gap: 14px;
+}
+
+.quality-list h4 {
+  margin: 0;
+}
+
+.issue-list {
+  margin: 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+}
+
+.status-ready {
+  color: var(--success);
+}
+
+.status-blocked {
+  color: var(--danger);
+}
+
+.figure-spec-card,
+.figure-candidate-card {
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  padding: 14px;
+  background: var(--panel-strong);
+}
+
+.figure-spec-header,
+.figure-candidate-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+}
+
+.figure-candidate-grid {
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+}
+
+.figure-candidate-card {
+  display: grid;
+  gap: 12px;
+}
+
+.figure-candidate-card.selected {
+  border-color: rgba(39, 111, 82, 0.28);
+  background: rgba(246, 255, 251, 0.92);
+}
+
+.figure-preview {
+  width: 100%;
+  aspect-ratio: 16 / 10;
+  object-fit: cover;
+  border-radius: 14px;
+  border: 1px solid rgba(71, 53, 37, 0.12);
+  background: rgba(255, 255, 255, 0.7);
+}
+
 .support-supported {
   color: var(--success);
 }
@@ -553,6 +634,12 @@ a {
   .app-header {
     flex-direction: column;
     align-items: start;
+  }
+
+  .workspace-hero-copy,
+  .workspace-hero-actions {
+    justify-items: start;
+    justify-content: start;
   }
 
   .job-status-bar {

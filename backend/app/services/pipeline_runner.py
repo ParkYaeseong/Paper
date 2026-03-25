@@ -12,14 +12,16 @@ from app.db import SessionLocal
 from app.models import CitationSlot, DatasetProfile, DraftSection, EvidenceMatch, JobRun, Outline, Project
 from app.services.drafting import run_draft
 from app.services.exporting import run_export
+from app.services.figures import run_generate_figures
 from app.services.grounding import run_grounding
 from app.services.normalization import run_ingest
 from app.services.planning import run_plan
+from app.services.quality import run_quality_audit
 from app.services.retrieval import run_retrieve
 
 
 ACTIVE_JOB_STATUSES = {"queued", "running"}
-PIPELINE_STAGES = {"ingest", "plan", "draft", "retrieve", "ground", "evidence", "export"}
+PIPELINE_STAGES = {"ingest", "plan", "draft", "retrieve", "ground", "evidence", "quality", "figures", "run_all", "export"}
 
 
 def _utcnow() -> datetime:
@@ -45,7 +47,7 @@ def get_active_stage_job(session: Session, project_id: str, stage: str) -> JobRu
 def ensure_stage_prerequisites(session: Session, project_id: str, stage: str) -> None:
     if stage not in PIPELINE_STAGES:
         raise ValueError("Unknown pipeline stage")
-    if stage == "ingest":
+    if stage in {"ingest", "run_all"}:
         return
     if stage == "plan" and _latest(session, DatasetProfile, project_id) is None:
         raise ValueError("Ingest must complete before planning")
@@ -64,9 +66,36 @@ def ensure_stage_prerequisites(session: Session, project_id: str, stage: str) ->
         section = session.scalars(select(DraftSection).where(DraftSection.project_id == project_id)).first()
         if section is None:
             raise ValueError("Drafting must complete before export")
+    if stage == "quality":
+        section = session.scalars(select(DraftSection).where(DraftSection.project_id == project_id)).first()
+        if section is None:
+            raise ValueError("Drafting must complete before quality audit")
+    if stage == "figures":
+        section = session.scalars(select(DraftSection).where(DraftSection.project_id == project_id)).first()
+        if section is None:
+            raise ValueError("Drafting must complete before figure generation")
 
 
-def run_pipeline_stage(session: Session, project: Project, settings: Settings, stage: str):
+def _update_job_log(session: Session, job_id: str | None, message: str) -> None:
+    if not job_id:
+        return
+    job = session.get(JobRun, job_id)
+    if job is None:
+        return
+    job.log_text = message
+    session.add(job)
+    session.commit()
+
+
+def run_pipeline_stage(
+    session: Session,
+    project: Project,
+    settings: Settings,
+    stage: str,
+    *,
+    payload: dict[str, Any] | None = None,
+    job_id: str | None = None,
+):
     if stage == "ingest":
         return run_ingest(session, project)
     if stage == "plan":
@@ -80,8 +109,22 @@ def run_pipeline_stage(session: Session, project: Project, settings: Settings, s
     if stage == "evidence":
         run_retrieve(session, project)
         return run_grounding(session, project.id)
+    if stage == "quality":
+        return run_quality_audit(session, project)
+    if stage == "figures":
+        return run_generate_figures(session, project, settings)
+    if stage == "run_all":
+        completed_stages: list[str] = []
+        for substage in ["ingest", "plan", "draft", "evidence", "quality", "figures", "quality"]:
+            _update_job_log(session, job_id, f"Running {substage}")
+            ensure_stage_prerequisites(session, project.id, substage)
+            run_pipeline_stage(session, project, settings, substage, payload=payload, job_id=job_id)
+            completed_stages.append(substage)
+        _update_job_log(session, job_id, "Run All completed")
+        return {"completed_stages": completed_stages}
     if stage == "export":
-        return run_export(session, project, settings)
+        mode = str((payload or {}).get("mode") or "draft").lower()
+        return run_export(session, project, settings, mode=mode)
     raise ValueError("Unknown pipeline stage")
 
 
@@ -92,6 +135,8 @@ def _serialize_result(result: Any) -> dict[str, Any]:
         payload["id"] = str(result_id)
     if isinstance(result, list):
         payload["count"] = len(result)
+    if isinstance(result, dict):
+        payload.update(result)
     return payload
 
 
@@ -124,7 +169,7 @@ def process_pipeline_job(
 
         try:
             ensure_stage_prerequisites(session, project.id, job.stage)
-            result = run_pipeline_stage(session, project, settings, job.stage)
+            result = run_pipeline_stage(session, project, settings, job.stage, payload=job.payload_json or {}, job_id=job.id)
             job = session.get(JobRun, job_id)
             if job is None:
                 return

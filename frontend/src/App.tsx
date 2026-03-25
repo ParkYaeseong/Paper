@@ -18,6 +18,8 @@ import {
   listProjects,
   logout,
   runPipelineStage,
+  runPipelineStageWithInput,
+  updateFigureSpec,
   updateCitationSlot,
   updateDraftSection,
   uploadArtifacts
@@ -259,11 +261,19 @@ export default function App() {
   }
 
   async function handleRunStage(stage: string) {
+    return handleRunStageWithInput(stage);
+  }
+
+  async function handleRunStageWithInput(stage: string, input?: { mode?: string }) {
     if (!selectedProjectId) return;
     setError(null);
     setPendingStage(stage);
     try {
-      await runPipelineStage(selectedProjectId, stage);
+      if (input) {
+        await runPipelineStageWithInput(selectedProjectId, stage, input);
+      } else {
+        await runPipelineStage(selectedProjectId, stage);
+      }
       await refreshWorkspace(selectedProjectId);
     } catch (caughtError) {
       const message = caughtError instanceof Error ? caughtError.message : "Failed to run stage.";
@@ -291,6 +301,12 @@ export default function App() {
       status,
       selected_reference_ids_json: selectedReferenceIds
     });
+    await refreshWorkspace(selectedProjectId);
+  }
+
+  async function handleSelectFigureAsset(figureSpecId: string, figureAssetId: string) {
+    if (!selectedProjectId) return;
+    await updateFigureSpec(selectedProjectId, figureSpecId, { figure_asset_id: figureAssetId });
     await refreshWorkspace(selectedProjectId);
   }
 
@@ -324,9 +340,12 @@ export default function App() {
           <ProjectWorkspace
             onDeleteArtifact={handleDeleteArtifact}
             pendingStage={pendingStage}
+            onRunExport={(mode) => handleRunStageWithInput("export", { mode })}
             onReviewSlot={handleReviewSlot}
             onRunStage={handleRunStage}
+            onRunStageWithInput={handleRunStageWithInput}
             onSaveSection={handleSaveSection}
+            onSelectFigureAsset={handleSelectFigureAsset}
             onUploadFiles={handleUploadFiles}
             workspace={workspace}
           />

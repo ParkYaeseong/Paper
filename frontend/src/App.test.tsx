@@ -15,6 +15,8 @@ vi.mock("./lib/api", () => ({
   listProjects: vi.fn(),
   logout: vi.fn(),
   runPipelineStage: vi.fn(),
+  runPipelineStageWithInput: vi.fn(),
+  updateFigureSpec: vi.fn(),
   updateCitationSlot: vi.fn(),
   updateDraftSection: vi.fn(),
   uploadArtifacts: vi.fn(),
@@ -42,6 +44,8 @@ function buildWorkspace(overrides: Record<string, unknown> = {}) {
     citation_slots: [],
     reference_records: [],
     evidence_matches: [],
+    quality_report: null,
+    figure_specs: [],
     export_bundle: null,
     jobs: [],
     ...overrides,
@@ -120,9 +124,10 @@ describe("App", () => {
     });
     expect(screen.getByRole("heading", { level: 2, name: "Create Project" })).toBeInTheDocument();
     expect(screen.getByRole("heading", { level: 3, name: "Workspace" })).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Run Evidence" })).toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Run Retrieve" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("button", { name: "Run Ground" })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run All" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Advanced" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Quality Summary" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 3, name: "Figure Review" })).toBeInTheDocument();
   });
 
   it("polls active jobs and refreshes workspace after completion", async () => {
@@ -162,7 +167,7 @@ describe("App", () => {
 
     render(<App />);
 
-    await screen.findByRole("button", { name: "Run Ingest" });
+    await screen.findByRole("button", { name: "Run All" });
     vi.useFakeTimers();
 
     vi.mocked(getWorkspace).mockReset();
@@ -172,7 +177,7 @@ describe("App", () => {
           jobs: [
             {
               id: "job-1",
-              stage: "ingest",
+              stage: "run_all",
               status: "queued",
               payload_json: null,
               result_json: null,
@@ -188,14 +193,14 @@ describe("App", () => {
       .mockResolvedValueOnce(buildWorkspace());
     vi.mocked(runPipelineStage).mockResolvedValue({
       ok: true,
-      job: { id: "job-1", stage: "ingest", status: "queued" },
+      job: { id: "job-1", stage: "run_all", status: "queued" },
     });
     vi.mocked(listJobs)
       .mockResolvedValueOnce({
         items: [
           {
             id: "job-1",
-            stage: "ingest",
+            stage: "run_all",
             status: "running",
             payload_json: null,
             result_json: null,
@@ -211,7 +216,7 @@ describe("App", () => {
         items: [
           {
             id: "job-1",
-            stage: "ingest",
+            stage: "run_all",
             status: "succeeded",
             payload_json: null,
             result_json: { type: "DatasetProfile" },
@@ -225,25 +230,25 @@ describe("App", () => {
       });
 
     await act(async () => {
-      fireEvent.click(screen.getByRole("button", { name: "Run Ingest" }));
+      fireEvent.click(screen.getByRole("button", { name: "Run All" }));
     });
 
-    expect(runPipelineStage).toHaveBeenCalledWith("project-1", "ingest");
-    expect(screen.getByRole("button", { name: "Ingest Running..." })).toBeDisabled();
-    expect(screen.getByText("Ingest queued")).toBeInTheDocument();
+    expect(runPipelineStage).toHaveBeenCalledWith("project-1", "run_all");
+    expect(screen.getByRole("button", { name: "Run All Running..." })).toBeDisabled();
+    expect(screen.getByText("Run All queued")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listJobs).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Ingest running")).toBeInTheDocument();
+    expect(screen.getByText("Run All running")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listJobs).toHaveBeenCalledTimes(2);
-    expect(screen.getByRole("button", { name: "Run Ingest" })).toBeEnabled();
-    expect(screen.getByText("Ingest succeeded")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Run All" })).toBeEnabled();
+    expect(screen.getByText("Run All succeeded")).toBeInTheDocument();
   });
 
   it("deletes the selected project and clears the workspace when no projects remain", async () => {
@@ -344,7 +349,8 @@ describe("App", () => {
     expect(dialog).toBeInTheDocument();
     expect(within(dialog).getByText("Quick Start")).toBeInTheDocument();
     expect(within(dialog).getByText("Upload Selected Files")).toBeInTheDocument();
-    expect(within(dialog).getByText("Run Evidence")).toBeInTheDocument();
+    expect(within(dialog).getByText("Run All")).toBeInTheDocument();
+    expect(within(dialog).getByText("Final Export")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("tab", { name: "한국어" }));
@@ -354,7 +360,8 @@ describe("App", () => {
     expect(koreanDialog).toBeInTheDocument();
     expect(within(koreanDialog).getByText("빠른 시작")).toBeInTheDocument();
     expect(within(koreanDialog).getByText("업로드한 파일이 바뀌면 Run Ingest를 다시 실행하세요.")).toBeInTheDocument();
-    expect(within(koreanDialog).getByText("Run Evidence")).toBeInTheDocument();
+    expect(within(koreanDialog).getByText("Run All")).toBeInTheDocument();
+    expect(within(koreanDialog).getByText("Final Export")).toBeInTheDocument();
 
     await act(async () => {
       fireEvent.click(screen.getByRole("button", { name: "Close guide" }));

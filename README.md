@@ -1,21 +1,25 @@
 # Paper Authoring Studio
 
-KBF SSO-protected manuscript authoring app for turning uploaded internal research artifacts into a citation-aware draft, evidence review workspace, and export bundle.
+KBF SSO-protected manuscript authoring app for turning uploaded internal research artifacts into a citation-aware draft, quality-audited review workspace, PaperBanana figure candidates, and gated export bundles.
 
 ## What is implemented
 
 - FastAPI backend with KBF Keycloak OIDC session handling
 - Project CRUD and artifact uploads
-- Ingest, plan, draft, retrieve, ground, and export pipeline stages
+- Ingest, plan, draft, evidence, quality, figures, run-all, and export pipeline stages
 - Redis/RQ-backed async job execution with a dedicated worker process
-- React/Vite SPA for project intake, outline review, draft editing, evidence review, and export download
+- React/Vite SPA for guided run-all execution, quality review, figure selection, draft editing, evidence review, and export download
 - Canonical export generation for JSON, Markdown, BibTeX, and DOCX
+- Draft vs Final export gating based on the latest quality report
+- PaperBanana-backed figure candidate generation from manuscript placeholders
 
 ## Current v1 behavior
 
 - Pipeline stages are enqueued by the API and executed by a separate worker.
 - If `OPENAI_API_KEY` or `GEMINI_API_KEY` is missing, the app falls back to deterministic local heuristics.
 - Retrieval uses PubMed and OpenAlex directly.
+- `Run All` executes `ingest -> plan -> draft -> evidence -> quality -> figures` and refreshes quality after figure generation.
+- `Draft Export` is always available. `Final Export` is blocked until the latest quality report has no critical issues.
 
 ## Repo layout
 
@@ -67,6 +71,20 @@ docker compose up -d --build
 ```
 
 The frontend is published on `http://127.0.0.1:18092`. The backend is also exposed on `http://127.0.0.1:18093` for direct API debugging. Redis and the worker are internal services in the same stack.
+
+### Optional PaperBanana runtime
+
+If you want automatic figure generation, make sure `/opt/PaperBanana` is available and configured with image-generation credentials. The Paper worker calls:
+
+```bash
+python /opt/PaperBanana/skill/run.py
+```
+
+You can override the runtime with:
+
+- `PAPER_PAPERBANANA_ROOT`
+- `PAPER_PAPERBANANA_PYTHON`
+- `PAPER_PAPERBANANA_CANDIDATES`
 
 ## Tests
 

@@ -8,12 +8,20 @@ type DraftPanelProps = {
   draftSections: DraftSection[];
   jobs: JobRun[];
   pendingStage: string | null;
+  showManualControls: boolean;
   onRunStage: (stage: string) => Promise<void>;
   onSaveSection: (sectionId: string, content: string) => Promise<void>;
 };
 
 
-export default function DraftPanel({ draftSections, jobs, pendingStage, onRunStage, onSaveSection }: DraftPanelProps) {
+export default function DraftPanel({
+  draftSections,
+  jobs,
+  pendingStage,
+  showManualControls,
+  onRunStage,
+  onSaveSection
+}: DraftPanelProps) {
   const [localEdits, setLocalEdits] = useState<Record<string, string>>({});
   const draftBusy = stageIsBusy("draft", jobs, pendingStage);
 
@@ -24,9 +32,11 @@ export default function DraftPanel({ draftSections, jobs, pendingStage, onRunSta
           <p className="eyebrow">Drafting</p>
           <h3>Workspace</h3>
         </div>
-        <button className="secondary-button" disabled={draftBusy} onClick={() => onRunStage("draft")} type="button">
-          {draftBusy ? stageRunningLabel("draft") : stageRunLabel("draft")}
-        </button>
+        {showManualControls ? (
+          <button className="secondary-button" disabled={draftBusy} onClick={() => onRunStage("draft")} type="button">
+            {draftBusy ? stageRunningLabel("draft") : stageRunLabel("draft")}
+          </button>
+        ) : null}
       </div>
       {draftSections.length ? (
         <div className="draft-grid">

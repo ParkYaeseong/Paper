@@ -6,11 +6,12 @@ type OutlinePanelProps = {
   outline: Outline;
   jobs: JobRun[];
   pendingStage: string | null;
+  showManualControls: boolean;
   onRunStage: (stage: string) => Promise<void>;
 };
 
 
-export default function OutlinePanel({ outline, jobs, pendingStage, onRunStage }: OutlinePanelProps) {
+export default function OutlinePanel({ outline, jobs, pendingStage, showManualControls, onRunStage }: OutlinePanelProps) {
   const planBusy = stageIsBusy("plan", jobs, pendingStage);
   return (
     <section className="panel">
@@ -19,9 +20,11 @@ export default function OutlinePanel({ outline, jobs, pendingStage, onRunStage }
           <p className="eyebrow">Planning</p>
           <h3>Outline</h3>
         </div>
-        <button className="secondary-button" disabled={planBusy} onClick={() => onRunStage("plan")} type="button">
-          {planBusy ? stageRunningLabel("plan") : stageRunLabel("plan")}
-        </button>
+        {showManualControls ? (
+          <button className="secondary-button" disabled={planBusy} onClick={() => onRunStage("plan")} type="button">
+            {planBusy ? stageRunningLabel("plan") : stageRunLabel("plan")}
+          </button>
+        ) : null}
       </div>
       {outline ? (
         <div className="outline-list">

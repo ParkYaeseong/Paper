@@ -29,6 +29,9 @@ class Settings:
     session_cookie_name: str
     session_cookie_secure: bool
     storage_root: str
+    paperbanana_root: str
+    paperbanana_python: str
+    paperbanana_candidates: int
 
 
 def get_settings() -> Settings:
@@ -52,4 +55,7 @@ def get_settings() -> Settings:
             "yes",
         },
         storage_root=_env("PAPER_STORAGE_ROOT", "./data"),
+        paperbanana_root=_env("PAPER_PAPERBANANA_ROOT", "/opt/PaperBanana"),
+        paperbanana_python=_env("PAPER_PAPERBANANA_PYTHON", ""),
+        paperbanana_candidates=int(_env("PAPER_PAPERBANANA_CANDIDATES", "1")),
     )

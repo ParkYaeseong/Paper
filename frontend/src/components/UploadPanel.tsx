@@ -10,6 +10,7 @@ type UploadPanelProps = {
   datasetProfile: DatasetProfile;
   jobs: JobRun[];
   pendingStage: string | null;
+  showManualControls: boolean;
   onDeleteArtifact: (artifactId: string) => Promise<void>;
   onUploadFiles: (files: File[]) => Promise<void>;
   onRunStage: (stage: string) => Promise<void>;
@@ -22,6 +23,7 @@ export default function UploadPanel({
   datasetProfile,
   jobs,
   pendingStage,
+  showManualControls,
   onDeleteArtifact,
   onUploadFiles,
   onRunStage,
@@ -70,9 +72,11 @@ export default function UploadPanel({
           <p className="eyebrow">Project Intake</p>
           <h3>Upload</h3>
         </div>
-        <button className="secondary-button" disabled={ingestBusy} onClick={() => onRunStage("ingest")} type="button">
-          {ingestBusy ? stageRunningLabel("ingest") : stageRunLabel("ingest")}
-        </button>
+        {showManualControls ? (
+          <button className="secondary-button" disabled={ingestBusy} onClick={() => onRunStage("ingest")} type="button">
+            {ingestBusy ? stageRunningLabel("ingest") : stageRunLabel("ingest")}
+          </button>
+        ) : null}
       </div>
       <p className="panel-copy">{project.objective || "Add an objective to anchor the planning stage."}</p>
       <input

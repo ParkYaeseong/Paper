@@ -7,11 +7,12 @@ import re
 import uuid
 
 from docx import Document
+from docx.shared import Inches
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import Settings
-from app.models import CitationSlot, DraftSection, EvidenceMatch, ExportBundle, Outline, Project, ReferenceRecord
+from app.models import CitationSlot, DraftSection, EvidenceMatch, ExportBundle, FigureAsset, FigureSpec, Outline, Project, QualityReport, ReferenceRecord
 
 
 CITATION_GROUP_RE = re.compile(r"\[([^\]]*CIT_[A-Z0-9_][^\]]*)\]")
@@ -31,6 +32,12 @@ def _latest_sections(session: Session, project_id: str) -> list[DraftSection]:
 
 def _latest_outline(session: Session, project_id: str) -> Outline | None:
     return session.scalars(select(Outline).where(Outline.project_id == project_id).order_by(Outline.version.desc())).first()
+
+
+def _latest_quality_report(session: Session, project_id: str) -> QualityReport | None:
+    return session.scalars(
+        select(QualityReport).where(QualityReport.project_id == project_id).order_by(QualityReport.version.desc())
+    ).first()
 
 
 def _extract_slot_keys(content: str) -> list[str]:
@@ -131,6 +138,61 @@ def _content_paragraphs(content: str) -> list[str]:
     return [paragraph.strip() for paragraph in re.split(r"\n\s*\n", content) if paragraph.strip()]
 
 
+def _selected_figure_assets(session: Session, project_id: str) -> dict[int, dict[str, object]]:
+    specs = list(
+        session.scalars(select(FigureSpec).where(FigureSpec.project_id == project_id).order_by(FigureSpec.figure_number)).all()
+    )
+    selected: dict[int, dict[str, object]] = {}
+    for spec in specs:
+        asset = next((item for item in spec.figure_assets if item.selected and item.artifact is not None), None)
+        if asset is None:
+            continue
+        selected[spec.figure_number] = {
+            "figure_key": spec.figure_key,
+            "caption": spec.caption_draft,
+            "artifact_path": asset.artifact.storage_path,
+            "asset_id": asset.id,
+        }
+    return selected
+
+
+def _render_text_only(paragraph: str, slot_numbers: dict[str, int]) -> str:
+    rendered = CITATION_GROUP_RE.sub(lambda match: _render_citation_group(match.group(1), slot_numbers), paragraph)
+    rendered = CITATION_TOKEN_RE.sub(
+        lambda match: f"[{slot_numbers[match.group(1)]}]" if match.group(1) in slot_numbers else "[manual review]",
+        rendered,
+    )
+    rendered = re.sub(r"`(\[[^`]+\])`", r"\1", rendered)
+    rendered = re.sub(r"\n{3,}", "\n\n", rendered)
+    return rendered.strip()
+
+
+def _render_blocks(
+    content: str,
+    heading: str,
+    slot_numbers: dict[str, int],
+    selected_figures: dict[int, dict[str, object]],
+) -> list[dict[str, object]]:
+    normalized = _strip_duplicate_heading(content, heading)
+    blocks: list[dict[str, object]] = []
+    for paragraph in _content_paragraphs(normalized):
+        match = FIGURE_PLACEHOLDER_RE.fullmatch(paragraph.strip())
+        if match:
+            figure_number = int(match.group(1))
+            figure_info = selected_figures.get(figure_number)
+            blocks.append(
+                {
+                    "type": "figure",
+                    "figure_number": figure_number,
+                    "caption": match.group(2).strip(),
+                    "artifact_path": None if figure_info is None else figure_info["artifact_path"],
+                }
+            )
+        else:
+            blocks.append({"type": "text", "content": _render_text_only(paragraph, slot_numbers)})
+    return blocks
+
+
 def _render_reference_line(index: int, reference: ReferenceRecord) -> str:
     authors = ", ".join(reference.authors_json[:3]) if reference.authors_json else "Unknown author"
     year = f" ({reference.year})" if reference.year else ""
@@ -153,24 +215,42 @@ def _render_bibtex_entry(reference: ReferenceRecord) -> str:
     )
 
 
-def run_export(session: Session, project: Project, settings: Settings) -> ExportBundle:
+def run_export(session: Session, project: Project, settings: Settings, *, mode: str = "draft") -> ExportBundle:
+    if mode == "final":
+        report = _latest_quality_report(session, project.id)
+        if report is None or not report.submission_ready:
+            raise ValueError("Final export is blocked until all critical quality issues are resolved")
+
     output_root = Path(settings.storage_root).expanduser().resolve() / "exports" / project.id / str(uuid.uuid4())
     output_root.mkdir(parents=True, exist_ok=True)
 
     slot_numbers, numbered_refs = _citation_numbering(session, project.id)
     outline = _latest_outline(session, project.id)
     sections = _latest_sections(session, project.id)
+    selected_figures = _selected_figure_assets(session, project.id)
 
     md_lines = [f"# {project.title}", ""]
     if outline is not None:
         md_lines.append(f"_Type: {outline.manuscript_type}_")
         md_lines.append("")
     for section in sections:
-        rendered_content = _render_content(section.content, section.heading, slot_numbers)
         md_lines.append(f"## {section.heading}")
         md_lines.append("")
-        md_lines.append(rendered_content)
-        md_lines.append("")
+        for block in _render_blocks(section.content, section.heading, slot_numbers, selected_figures):
+            if block["type"] == "text":
+                md_lines.append(str(block["content"]))
+                md_lines.append("")
+                continue
+            figure_number = int(block["figure_number"])
+            caption = str(block["caption"])
+            artifact_path = str(block["artifact_path"] or "")
+            if artifact_path:
+                md_lines.append(f"![Figure {figure_number}]({artifact_path})")
+                md_lines.append("")
+                md_lines.append(f"Figure {figure_number}. {caption}")
+            else:
+                md_lines.append(f"Figure {figure_number}. Suggested insert: {caption}")
+            md_lines.append("")
     md_lines.append("## References")
     md_lines.append("")
     for index, reference in numbered_refs.items():
@@ -184,7 +264,16 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
             {
                 "section_key": section.section_key,
                 "heading": section.heading,
-                "content": _render_content(section.content, section.heading, slot_numbers),
+                "content": "\n\n".join(
+                    str(block["content"])
+                    if block["type"] == "text"
+                    else (
+                        f"Figure {int(block['figure_number'])}. {str(block['caption'])}"
+                        if block["artifact_path"]
+                        else f"Figure {int(block['figure_number'])}. Suggested insert: {str(block['caption'])}"
+                    )
+                    for block in _render_blocks(section.content, section.heading, slot_numbers, selected_figures)
+                ),
             }
             for section in sections
         ],
@@ -196,6 +285,14 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
                 "authors": reference.authors_json,
             }
             for index, reference in numbered_refs.items()
+        ],
+        "figures": [
+            {
+                "figure_number": figure_number,
+                "artifact_path": details["artifact_path"],
+                "caption": details["caption"],
+            }
+            for figure_number, details in sorted(selected_figures.items())
         ],
     }
 
@@ -209,10 +306,17 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
     document = Document()
     document.add_heading(project.title, level=0)
     for section in sections:
-        rendered_content = _render_content(section.content, section.heading, slot_numbers)
         document.add_heading(section.heading, level=1)
-        for paragraph in _content_paragraphs(rendered_content):
-            document.add_paragraph(paragraph)
+        for block in _render_blocks(section.content, section.heading, slot_numbers, selected_figures):
+            if block["type"] == "text":
+                document.add_paragraph(str(block["content"]))
+                continue
+            artifact_path = str(block["artifact_path"] or "")
+            if artifact_path and Path(artifact_path).exists():
+                document.add_picture(artifact_path, width=Inches(6.5))
+                document.add_paragraph(f"Figure {int(block['figure_number'])}. {str(block['caption'])}")
+            else:
+                document.add_paragraph(f"Figure {int(block['figure_number'])}. Suggested insert: {str(block['caption'])}")
     document.add_heading("References", level=1)
     for index, reference in numbered_refs.items():
         document.add_paragraph(_render_reference_line(index, reference))
@@ -223,6 +327,7 @@ def run_export(session: Session, project: Project, settings: Settings) -> Export
         project_id=project.id,
         status="ready",
         manifest_json={
+            "mode": mode,
             "markdown_path": str(md_path),
             "bibtex_path": str(bib_path),
             "json_path": str(json_path),
