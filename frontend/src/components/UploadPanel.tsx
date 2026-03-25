@@ -1,9 +1,10 @@
 import { useState } from "react";
 
-import type { DatasetProfile, JobRun, Project } from "../lib/types";
+import type { Artifact, DatasetProfile, JobRun, Project } from "../lib/types";
 
 
 type UploadPanelProps = {
+  artifacts: Artifact[];
   project: Project;
   datasetProfile: DatasetProfile;
   jobs: JobRun[];
@@ -12,11 +13,15 @@ type UploadPanelProps = {
 };
 
 
-export default function UploadPanel({ project, datasetProfile, jobs, onUploadFiles, onRunStage }: UploadPanelProps) {
+export default function UploadPanel({ artifacts, project, datasetProfile, jobs, onUploadFiles, onRunStage }: UploadPanelProps) {
   const [files, setFiles] = useState<File[]>([]);
   const summary = datasetProfile?.summary_json?.dataset_summary as
     | { artifact_count?: number; table_count?: number }
     | undefined;
+  const artifactCount = artifacts.length;
+  const inferredTableCount = artifacts.filter((artifact) => artifact.filename.toLowerCase().endsWith(".csv")).length;
+  const tableCount = summary?.table_count ?? inferredTableCount;
+  const recentArtifacts = artifacts.slice(0, 5);
   const ingestBusy = jobs.some((job) => job.stage === "ingest" && (job.status === "queued" || job.status === "running"));
 
   async function handleUpload() {
@@ -45,16 +50,28 @@ export default function UploadPanel({ project, datasetProfile, jobs, onUploadFil
       <button className="primary-button" onClick={handleUpload} type="button">
         Upload Selected Files
       </button>
+      {!datasetProfile && artifactCount > 0 ? (
+        <p className="muted-copy">Files uploaded. Run Ingest to summarize tables and notes into the project profile.</p>
+      ) : null}
       <div className="stats-grid">
         <div className="stat-card">
           <span>Artifacts</span>
-          <strong>{summary?.artifact_count ?? 0}</strong>
+          <strong>{artifactCount}</strong>
         </div>
         <div className="stat-card">
           <span>Tables</span>
-          <strong>{summary?.table_count ?? 0}</strong>
+          <strong>{tableCount}</strong>
         </div>
       </div>
+      {recentArtifacts.length ? (
+        <div className="artifact-list">
+          {recentArtifacts.map((artifact) => (
+            <div className="artifact-chip" key={artifact.id}>
+              {artifact.filename}
+            </div>
+          ))}
+        </div>
+      ) : null}
     </section>
   );
 }

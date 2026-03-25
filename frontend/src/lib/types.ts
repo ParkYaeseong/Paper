@@ -43,6 +43,19 @@ export type DatasetProfile = {
   summary_json: Record<string, unknown>;
 } | null;
 
+export type Artifact = {
+  id: string;
+  project_id: string;
+  kind: string;
+  filename: string;
+  content_type: string;
+  storage_path: string;
+  size_bytes: number;
+  sha256: string;
+  created_at: string;
+  updated_at: string;
+};
+
 export type Outline = {
   id: string;
   version: number;
@@ -124,6 +137,7 @@ export type JobRun = {
 
 export type Workspace = {
   project: Project;
+  artifacts: Artifact[];
   dataset_profile: DatasetProfile;
   outline: Outline;
   draft_sections: DraftSection[];

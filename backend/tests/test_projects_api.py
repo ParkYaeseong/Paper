@@ -46,6 +46,13 @@ def test_upload_artifact_to_owned_project(client, auth_cookie: str) -> None:
     assert payload["items"][0]["filename"] == "results.csv"
     assert payload["items"][0]["size_bytes"] > 0
 
+    workspace = client.get(f"/api/projects/{project['id']}/workspace")
+
+    assert workspace.status_code == 200
+    body = workspace.json()
+    assert len(body["artifacts"]) == 1
+    assert body["artifacts"][0]["filename"] == "results.csv"
+
 
 def test_reject_access_to_other_users_project(client, auth_cookie: str, other_user_cookie: str) -> None:
     client.cookies.set("paper_session", auth_cookie)

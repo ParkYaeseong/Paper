@@ -34,6 +34,7 @@ export default function ProjectWorkspace({
       </div>
       <div className="workspace-grid">
         <UploadPanel
+          artifacts={workspace.artifacts}
           datasetProfile={workspace.dataset_profile}
           jobs={workspace.jobs}
           onRunStage={onRunStage}

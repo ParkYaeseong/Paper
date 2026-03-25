@@ -234,6 +234,7 @@ a {
 .draft-grid,
 .evidence-list,
 .export-grid,
+.artifact-list,
 .workspace-grid {
   display: grid;
   gap: 14px;
@@ -244,6 +245,7 @@ a {
 .draft-card,
 .evidence-card,
 .export-link,
+.artifact-chip,
 .stat-card {
   text-align: left;
   border: 1px solid var(--border);
@@ -322,6 +324,17 @@ a {
 .stat-card {
   display: grid;
   gap: 6px;
+}
+
+.artifact-list {
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+}
+
+.artifact-chip {
+  padding: 10px 12px;
+  font-size: 0.92rem;
+  color: var(--muted);
+  background: rgba(255, 250, 242, 0.7);
 }
 
 .outline-card {

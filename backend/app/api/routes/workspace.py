@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from app.config import Settings
 from app.db import get_db_session
 from app.deps import require_user
-from app.models import CitationSlot, DatasetProfile, DraftSection, EvidenceMatch, ExportBundle, JobRun, Outline, Project, ReferenceRecord
+from app.models import Artifact, CitationSlot, DatasetProfile, DraftSection, EvidenceMatch, ExportBundle, JobRun, Outline, Project, ReferenceRecord
 from app.queue import enqueue_pipeline_job
 from app.services.exporting import run_export
 from app.services.pipeline_runner import ensure_stage_prerequisites, get_active_stage_job
@@ -106,6 +106,21 @@ def _serialize_reference(reference: ReferenceRecord) -> dict[str, object]:
     }
 
 
+def _serialize_artifact(artifact: Artifact) -> dict[str, object]:
+    return {
+        "id": artifact.id,
+        "project_id": artifact.project_id,
+        "kind": artifact.kind,
+        "filename": artifact.filename,
+        "content_type": artifact.content_type,
+        "storage_path": artifact.storage_path,
+        "size_bytes": artifact.size_bytes,
+        "sha256": artifact.sha256,
+        "created_at": _serialize_datetime(artifact.created_at),
+        "updated_at": _serialize_datetime(artifact.updated_at),
+    }
+
+
 def _serialize_match(match: EvidenceMatch) -> dict[str, object]:
     return {
         "id": match.id,
@@ -154,6 +169,7 @@ def get_workspace(
     session: Session = Depends(get_db_session),
 ):
     project = _project_or_403(session, project_id, user)
+    artifacts = list(session.scalars(select(Artifact).where(Artifact.project_id == project.id).order_by(Artifact.created_at.desc())))
     profile = _latest(session, DatasetProfile, project.id)
     outline = _latest(session, Outline, project.id)
     export_bundle = _latest(session, ExportBundle, project.id)
@@ -164,6 +180,7 @@ def get_workspace(
     jobs = list(session.scalars(select(JobRun).where(JobRun.project_id == project.id).order_by(JobRun.created_at)))
     return {
         "project": _serialize_project(project),
+        "artifacts": [_serialize_artifact(artifact) for artifact in artifacts],
         "dataset_profile": None if profile is None else {"id": profile.id, "version": profile.version, "summary_json": profile.summary_json},
         "outline": None
         if outline is None
