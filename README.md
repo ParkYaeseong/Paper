@@ -7,12 +7,13 @@ KBF SSO-protected manuscript authoring app for turning uploaded internal researc
 - FastAPI backend with KBF Keycloak OIDC session handling
 - Project CRUD and artifact uploads
 - Ingest, plan, draft, retrieve, ground, and export pipeline stages
+- Redis/RQ-backed async job execution with a dedicated worker process
 - React/Vite SPA for project intake, outline review, draft editing, evidence review, and export download
 - Canonical export generation for JSON, Markdown, BibTeX, and DOCX
 
 ## Current v1 behavior
 
-- The pipeline runs synchronously inside the API process for now.
+- Pipeline stages are enqueued by the API and executed by a separate worker.
 - If `OPENAI_API_KEY` or `GEMINI_API_KEY` is missing, the app falls back to deterministic local heuristics.
 - Retrieval uses PubMed and OpenAlex directly.
 
@@ -36,7 +37,16 @@ export PAPER_STORAGE_ROOT=/opt/Paper/data
 uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
-2. Frontend
+2. Worker
+
+```bash
+cd /opt/Paper/backend
+. .venv/bin/activate
+export PAPER_STORAGE_ROOT=/opt/Paper/data
+python -m app.jobs
+```
+
+3. Frontend
 
 ```bash
 cd /opt/Paper/frontend
@@ -56,7 +66,7 @@ cd /opt/Paper
 docker compose up -d --build
 ```
 
-The frontend is published on `http://127.0.0.1:18092`. The backend is also exposed on `http://127.0.0.1:18093` for direct API debugging.
+The frontend is published on `http://127.0.0.1:18092`. The backend is also exposed on `http://127.0.0.1:18093` for direct API debugging. Redis and the worker are internal services in the same stack.
 
 ## Tests
 
