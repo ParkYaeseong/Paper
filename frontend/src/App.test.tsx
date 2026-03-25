@@ -190,7 +190,26 @@ describe("App", () => {
           ],
         }),
       )
-      .mockResolvedValueOnce(buildWorkspace());
+      .mockResolvedValueOnce(
+        buildWorkspace({
+          jobs: [
+            {
+              id: "job-1",
+              stage: "run_all",
+              status: "running",
+              payload_json: null,
+              result_json: null,
+              log_text: "Running draft",
+              started_at: "2026-03-25T00:00:01Z",
+              finished_at: null,
+              created_at: "2026-03-25T00:00:00Z",
+              updated_at: "2026-03-25T00:00:01Z",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(buildWorkspace())
+      .mockResolvedValue(buildWorkspace());
     vi.mocked(runPipelineStage).mockResolvedValue({
       ok: true,
       job: { id: "job-1", stage: "run_all", status: "queued" },
@@ -250,6 +269,156 @@ describe("App", () => {
     expect(listJobs).toHaveBeenCalledTimes(2);
     expect(screen.getByRole("button", { name: "Run All" })).toBeEnabled();
     expect(screen.getByText("Run All succeeded")).toBeInTheDocument();
+  });
+
+  it("refreshes workspace during an active Run All job so intermediate outputs appear", async () => {
+    vi.mocked(getAuthConfig).mockResolvedValue({
+      ok: true,
+      enabled: true,
+      issuer: "https://sso.example.com/realms/kbf",
+      client_id: "paper",
+      scopes: "openid profile email",
+      provider_name: "KBF SSO",
+      authorization_endpoint: "https://sso.example.com/auth",
+      end_session_endpoint: "https://sso.example.com/logout",
+      account_url: "https://sso.example.com/account",
+    });
+    vi.mocked(getCurrentUser).mockResolvedValue({
+      sub: "user-1",
+      username: "tester",
+      email: "tester@example.com",
+      name: "Test User",
+      role: "user",
+    });
+    vi.mocked(listProjects).mockResolvedValue({
+      items: [
+        {
+          id: "project-1",
+          title: "Funding analysis manuscript",
+          objective: "Analyze funding and performance outcomes.",
+          status: "draft",
+          owner_sub: "user-1",
+          owner_username: "tester",
+          created_at: "2026-03-24T00:00:00Z",
+          updated_at: "2026-03-24T00:00:00Z",
+        },
+      ],
+    });
+    vi.mocked(getWorkspace).mockResolvedValue(buildWorkspace());
+
+    render(<App />);
+
+    await screen.findByRole("button", { name: "Run All" });
+    vi.useFakeTimers();
+
+    vi.mocked(getWorkspace).mockReset();
+    vi.mocked(getWorkspace)
+      .mockResolvedValueOnce(
+        buildWorkspace({
+          jobs: [
+            {
+              id: "job-2",
+              stage: "run_all",
+              status: "queued",
+              payload_json: null,
+              result_json: null,
+              log_text: "",
+              started_at: null,
+              finished_at: null,
+              created_at: "2026-03-25T00:00:00Z",
+              updated_at: "2026-03-25T00:00:00Z",
+            },
+          ],
+        }),
+      )
+      .mockResolvedValueOnce(
+        buildWorkspace({
+          jobs: [
+            {
+              id: "job-2",
+              stage: "run_all",
+              status: "running",
+              payload_json: null,
+              result_json: null,
+              log_text: "Running figures",
+              started_at: "2026-03-25T00:00:01Z",
+              finished_at: null,
+              created_at: "2026-03-25T00:00:00Z",
+              updated_at: "2026-03-25T00:00:02Z",
+            },
+          ],
+          outline: {
+            id: "outline-1",
+            version: 1,
+            manuscript_type: "original_article",
+            title_candidates_json: ["Protein workflow system paper"],
+            outline_json: {
+              sections: [{ key: "introduction", heading: "Introduction", claims: ["Claim 1"] }],
+            },
+          },
+        }),
+      )
+      .mockResolvedValue(
+        buildWorkspace({
+          jobs: [
+            {
+              id: "job-2",
+              stage: "run_all",
+              status: "running",
+              payload_json: null,
+              result_json: null,
+              log_text: "Running figures",
+              started_at: "2026-03-25T00:00:01Z",
+              finished_at: null,
+              created_at: "2026-03-25T00:00:00Z",
+              updated_at: "2026-03-25T00:00:02Z",
+            },
+          ],
+          outline: {
+            id: "outline-1",
+            version: 1,
+            manuscript_type: "original_article",
+            title_candidates_json: ["Protein workflow system paper"],
+            outline_json: {
+              sections: [{ key: "introduction", heading: "Introduction", claims: ["Claim 1"] }],
+            },
+          },
+        }),
+      );
+    vi.mocked(runPipelineStage).mockResolvedValue({
+      ok: true,
+      job: { id: "job-2", stage: "run_all", status: "queued" },
+    });
+    vi.mocked(listJobs).mockResolvedValueOnce({
+      items: [
+        {
+          id: "job-2",
+          stage: "run_all",
+          status: "running",
+          payload_json: null,
+          result_json: null,
+          log_text: "Running figures",
+          started_at: "2026-03-25T00:00:01Z",
+          finished_at: null,
+          created_at: "2026-03-25T00:00:00Z",
+          updated_at: "2026-03-25T00:00:02Z",
+        },
+      ],
+    });
+
+    await act(async () => {
+      fireEvent.click(screen.getByRole("button", { name: "Run All" }));
+    });
+
+    expect(screen.getByText("No outline yet. Run the planning stage after ingest.")).toBeInTheDocument();
+
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(2000);
+    });
+
+    expect(listJobs).toHaveBeenCalledTimes(1);
+    expect(screen.getByText("original_article")).toBeInTheDocument();
+    expect(screen.getByText("Introduction")).toBeInTheDocument();
   });
 
   it("deletes the selected project and clears the workspace when no projects remain", async () => {

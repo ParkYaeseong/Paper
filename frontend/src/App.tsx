@@ -117,6 +117,7 @@ export default function App() {
       try {
         const response = await listJobs(selectedProjectId);
         setWorkspace((current) => (current ? { ...current, jobs: response.items } : current));
+        await refreshWorkspace(selectedProjectId);
         if (!response.items.some(isActiveJob)) {
           const latestJob = sortJobsByRecency(response.items)[0];
           if (latestJob && (latestJob.status === "succeeded" || latestJob.status === "failed")) {
