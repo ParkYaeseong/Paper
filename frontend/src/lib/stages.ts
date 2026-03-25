@@ -112,6 +112,15 @@ export function stageDescription(stage: string) {
 }
 
 
+export function parseRunAllSubstage(logText: string) {
+  const match = /^Running ([a-z_]+)$/i.exec(logText.trim());
+  if (!match) {
+    return null;
+  }
+  return match[1].toLowerCase();
+}
+
+
 export function stageIsBusy(stage: string, jobs: JobRun[], pendingStage: string | null) {
   const aliases = STAGE_ALIASES[stage] || [stage];
   const runAllActive = jobs.some((job) => job.stage === "run_all" && isActiveJob(job));

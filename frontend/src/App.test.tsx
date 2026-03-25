@@ -204,7 +204,7 @@ describe("App", () => {
             status: "running",
             payload_json: null,
             result_json: null,
-            log_text: "",
+            log_text: "Running draft",
             started_at: "2026-03-25T00:00:01Z",
             finished_at: null,
             created_at: "2026-03-25T00:00:00Z",
@@ -241,7 +241,8 @@ describe("App", () => {
       await vi.advanceTimersByTimeAsync(2000);
     });
     expect(listJobs).toHaveBeenCalledTimes(1);
-    expect(screen.getByText("Run All running")).toBeInTheDocument();
+    expect(screen.getByText("Running Draft")).toBeInTheDocument();
+    expect(screen.getByText("Writing manuscript sections from the structured project profile.")).toBeInTheDocument();
 
     await act(async () => {
       await vi.advanceTimersByTimeAsync(2000);
