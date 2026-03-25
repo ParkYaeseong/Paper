@@ -3,7 +3,7 @@ from __future__ import annotations
 from io import BytesIO
 
 
-def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, monkeypatch) -> None:
+def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, monkeypatch, db_session_factory) -> None:
     client.cookies.set("paper_session", auth_cookie)
     project = client.post(
         "/api/projects",
@@ -33,12 +33,17 @@ def test_pipeline_runs_end_to_end_with_fake_retrieval(client, auth_cookie: str, 
         ],
     )
     monkeypatch.setattr("app.services.retrieval.search_openalex", lambda query, limit=5: [])
+    monkeypatch.setattr("app.api.routes.workspace.enqueue_pipeline_job", lambda settings, job_id: job_id, raising=False)
+
+    from app.jobs import process_pipeline_job
 
     for stage in ["ingest", "plan", "draft", "retrieve", "ground", "export"]:
         response = client.post(f"/api/projects/{project['id']}/pipeline/{stage}")
-        assert response.status_code == 200, response.text
-        assert response.json()["job"]["stage"] == stage
-        assert response.json()["job"]["status"] == "succeeded"
+        assert response.status_code == 202, response.text
+        job = response.json()["job"]
+        assert job["stage"] == stage
+        assert job["status"] == "queued"
+        process_pipeline_job(job["id"], session_factory=db_session_factory)
 
     workspace = client.get(f"/api/projects/{project['id']}/workspace")
 

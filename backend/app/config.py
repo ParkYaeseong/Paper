@@ -16,6 +16,7 @@ def _env(key: str, default: str) -> str:
 class Settings:
     app_name: str
     app_version: str
+    redis_url: str
     oidc_issuer: str
     oidc_client_id: str
     oidc_audience: str
@@ -34,6 +35,7 @@ def get_settings() -> Settings:
     return Settings(
         app_name=_env("PAPER_APP_NAME", "Paper API"),
         app_version=_env("PAPER_APP_VERSION", "0.1.0"),
+        redis_url=_env("PAPER_REDIS_URL", "redis://localhost:6379/0"),
         oidc_issuer=_env("PAPER_OIDC_ISSUER", ""),
         oidc_client_id=_env("PAPER_OIDC_CLIENT_ID", ""),
         oidc_audience=_env("PAPER_OIDC_AUDIENCE", ""),

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -13,12 +13,9 @@ from app.config import Settings
 from app.db import get_db_session
 from app.deps import require_user
 from app.models import CitationSlot, DatasetProfile, DraftSection, EvidenceMatch, ExportBundle, JobRun, Outline, Project, ReferenceRecord
-from app.services.drafting import run_draft
+from app.queue import enqueue_pipeline_job
 from app.services.exporting import run_export
-from app.services.grounding import run_grounding
-from app.services.normalization import run_ingest
-from app.services.planning import run_plan
-from app.services.retrieval import run_retrieve
+from app.services.pipeline_runner import ensure_stage_prerequisites, get_active_stage_job
 
 
 router = APIRouter(prefix="/projects/{project_id}", tags=["workspace"])
@@ -139,22 +136,6 @@ def _serialize_job(job: JobRun) -> dict[str, object]:
     }
 
 
-def _stage_dispatch(stage: str, session: Session, project: Project, settings: Settings):
-    if stage == "ingest":
-        return run_ingest(session, project)
-    if stage == "plan":
-        return run_plan(session, project)
-    if stage == "draft":
-        return run_draft(session, project)
-    if stage == "retrieve":
-        return run_retrieve(session, project)
-    if stage == "ground":
-        return run_grounding(session, project.id)
-    if stage == "export":
-        return run_export(session, project, settings)
-    raise HTTPException(status_code=400, detail="Unknown pipeline stage")
-
-
 def _bundle_download_urls(project_id: str, bundle: ExportBundle | None) -> dict[str, str]:
     if bundle is None:
         return {}
@@ -209,7 +190,7 @@ def get_workspace(
     }
 
 
-@router.post("/pipeline/{stage}")
+@router.post("/pipeline/{stage}", status_code=status.HTTP_202_ACCEPTED)
 def run_pipeline_stage(
     project_id: str,
     stage: str,
@@ -218,27 +199,31 @@ def run_pipeline_stage(
     session: Session = Depends(get_db_session),
 ):
     project = _project_or_403(session, project_id, user)
-    job = JobRun(project_id=project.id, stage=stage, status="running", started_at=datetime.now(timezone.utc))
+    try:
+        ensure_stage_prerequisites(session, project.id, stage)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    active_job = get_active_stage_job(session, project.id, stage)
+    if active_job is not None:
+        raise HTTPException(status_code=409, detail="An active job already exists for this stage")
+
+    job = JobRun(project_id=project.id, stage=stage, status="queued", payload_json={"project_id": project.id, "stage": stage})
     session.add(job)
     session.commit()
     session.refresh(job)
+
     try:
-        result = _stage_dispatch(stage, session, project, request.app.state.settings)
-        job.status = "succeeded"
-        job.result_json = {"type": result.__class__.__name__}
-        job.finished_at = datetime.now(timezone.utc)
-        session.add(job)
-        session.commit()
-        session.refresh(job)
-        return {"ok": True, "job": _serialize_job(job)}
+        enqueue_pipeline_job(request.app.state.settings, job.id)
     except Exception as exc:
         job.status = "failed"
-        job.log_text = str(exc)
+        job.log_text = f"Failed to enqueue job: {exc}"
         job.finished_at = datetime.now(timezone.utc)
         session.add(job)
         session.commit()
         session.refresh(job)
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(status_code=500, detail="Failed to enqueue pipeline job")
+    return {"ok": True, "job": _serialize_job(job)}
 
 
 @router.patch("/draft-sections/{section_id}")
